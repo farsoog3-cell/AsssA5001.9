@@ -3,109 +3,226 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Molfa — شبكة تطريز صحيحة</title>
+<title>Molfa — صورة → شبكة تطريز + DST</title>
+<script src="https://cdn.tailwindcss.com"></script>
 <style>
-body{font-family:Arial; background:#f3f4f6; color:#111;}
+body{font-family:Inter,system-ui,Arial; background:#f3f4f6; color:#111;}
+.mono{font-family:ui-monospace,monospace;}
 .svg-wrap{width:100%;height:100%;display:flex;align-items:center;justify-content:center;}
 .svg-wrap svg,.svg-wrap object{width:100%;height:100%;}
-button{cursor:pointer;margin-top:5px;}
+button{cursor:pointer;}
 </style>
 </head>
-<body>
-<h2>Molfa — شبكة تطريز صحيحة</h2>
-<input id="file" type="file" accept="image/*"/>
-<br>
-حجم الخلية: <input id="cellSize" type="number" value="8" min="4" max="40"/>
-<br>
-عتبة B/W: <input id="bwThreshold" type="range" min="0" max="255" value="128"/>
-<br>
-طول الغرزة: <input id="stitchStep" type="number" value="4" min="1" max="16"/>
-<br>
-مقياس التصدير: <input id="exportScale" type="number" value="0.2" step="0.05" min="0.05" max="5"/>
-<br>
-<button id="process">توليد DST + معاينة</button>
-<div id="svgPreview" class="svg-wrap">لم يتم التوليد بعد</div>
-<div id="downloadBtns"></div>
+<body class="min-h-screen flex flex-col">
+<header class="bg-indigo-700 text-white py-4 shadow text-center">
+<h1 class="text-xl font-semibold">Molfa — صورة → شبكة تطريز (DST مباشر)</h1>
+<p>توليد شبكة أبيض/أسود + غرز X + تصدير ملف DST مباشرة في المتصفح</p>
+</header>
+
+<main class="container mx-auto p-4 md:p-6 flex-grow">
+<div class="bg-white rounded-xl shadow p-4 md:p-6">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<div>
+<label class="block font-medium">اختر صورة</label>
+<input id="file" type="file" accept="image/*" class="w-full p-2 border rounded"/>
+
+<div class="mt-3">
+<label class="text-sm block mb-1">حجم الخلية (px)</label>
+<input id="cellSize" type="number" min="4" max="40" value="8" class="w-full p-2 border rounded"/>
+</div>
+
+<div class="mt-3">
+<label class="text-sm block mb-1">عتبة الأبيض/أسود</label>
+<input id="bwThreshold" type="range" min="0" max="255" value="128"/>
+</div>
+
+<div class="mt-3">
+<label class="text-sm block mb-1">طول الغرزة داخل X (px)</label>
+<input id="stitchStep" type="number" min="1" max="16" value="4" class="w-full p-2 border rounded"/>
+</div>
+
+<div class="mt-3">
+<label class="text-sm block mb-1">مقياس التصدير (px → 0.1mm)</label>
+<input id="exportScale" type="number" value="0.2" step="0.05" min="0.05" max="5" class="w-full p-2 border rounded"/>
+</div>
+
+<div class="mt-4 flex gap-2">
+<button id="process" class="flex-1 bg-indigo-600 text-white py-2 rounded">🔧 توليد + تصدير DST</button>
+</div>
+
+<div id="downloadBtns" class="mt-3 grid grid-cols-1 gap-2"></div>
+</div>
+
+<div class="md:col-span-2">
+<div class="bg-gray-50 p-3 rounded min-h-[380px] flex items-center justify-center">
+<div id="svgPreview" class="svg-wrap text-gray-500">لم يتم التوليد بعد</div>
+</div>
+<pre id="log" class="mono text-xs h-40 overflow-auto whitespace-pre-wrap bg-white p-2 rounded border mt-3"></pre>
+</div>
+</div>
+</div>
+</main>
 
 <script>
-function forceDownload(blob,name){
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a'); a.href=url; a.download=name; a.click();
-  setTimeout(()=>URL.revokeObjectURL(url),2000);
+function log(msg){ 
+  const el=document.getElementById('log'); 
+  el.textContent += '['+new Date().toLocaleTimeString()+'] '+msg + "\n"; 
+  el.scrollTop = el.scrollHeight; 
+}
+function forceDownload(blob,name){ 
+  const url=URL.createObjectURL(blob); 
+  const a=document.createElement('a'); 
+  a.href=url; a.download=name; 
+  document.body.appendChild(a); 
+  a.click(); 
+  a.remove(); 
+  setTimeout(()=>URL.revokeObjectURL(url),2000); 
 }
 
+// DST helper functions (minimal, enough لتصدير النقاط X)
 function buildDST(coords){
-  const header=new Uint8Array(512);
-  const body=[]; let prevx=0, prevy=0;
+  const header = new Uint8Array(512); // فارغ
+  const body = [];
+  let prevx=0, prevy=0;
   coords.forEach(p=>{
-    let dx=p[0]-prevx, dy=p[1]-prevy;
+    const x=Math.round(p[0]), y=Math.round(p[1]);
+    let dx=x-prevx, dy=y-prevy;
     while(Math.abs(dx)>121||Math.abs(dy)>121){
       const sx=Math.max(-121,Math.min(121,dx));
       const sy=Math.max(-121,Math.min(121,dy));
-      body.push(sx&0xFF, sy&0xFF, 0x01); dx-=sx; dy-=sy; prevx+=sx; prevy+=sy;
+      body.push(sx&0xFF, sy&0xFF, 0x01); 
+      dx-=sx; dy-=sy; prevx+=sx; prevy+=sy;
     }
-    body.push(dx&0xFF, dy&0xFF, 0x03); prevx=p[0]; prevy=p[1];
+    body.push(dx&0xFF, dy&0xFF, 0x03);
+    prevx=x; prevy=y;
   });
   body.push(0x00,0x00,0xF3);
   const arr=new Uint8Array(512+body.length);
-  arr.set(header,0); arr.set(new Uint8Array(body),512);
+  arr.set(header,0);
+  arr.set(new Uint8Array(body),512);
   return arr;
 }
 
-document.getElementById('process').onclick=()=>{
-  const f=document.getElementById('file').files[0];
-  if(!f){ alert('اختر صورة'); return; }
-  const reader=new FileReader();
-  reader.onload=()=>{
-    const img=new Image();
-    img.src=reader.result;
-    img.onload=()=>{
-      const cell=Number(document.getElementById('cellSize').value);
-      const bw=Number(document.getElementById('bwThreshold').value);
-      const step=Number(document.getElementById('stitchStep').value);
-      const scale=Number(document.getElementById('exportScale').value);
+function makeWorkerFromFunc(fn){ 
+  const src = fn.toString(); 
+  const blob=new Blob(['('+src+')()'],{type:'application/javascript'}); 
+  return new Worker(URL.createObjectURL(blob)); 
+}
 
-      const w=img.width,h=img.height;
-      const c=document.createElement('canvas'); c.width=w;c.height=h;
-      const ctx=c.getContext('2d'); ctx.drawImage(img,0,0,w,h);
+const worker = makeWorkerFromFunc(function(){
+  onmessage=async ev=>{
+    const {dataURL, cellSize, bwThreshold, stitchStep, exportScale}=ev.data;
+    try{
+      const imgBlob=await (await fetch(dataURL)).blob();
+      const img=await createImageBitmap(imgBlob);
+      const cell=Math.max(4,Math.min(48,Number(cellSize)||8));
+      const gridW=Math.max(1,Math.floor(img.width/cell));
+      const gridH=Math.max(1,Math.floor(img.height/cell));
+      const w=gridW*cell,h=gridH*cell;
+      const off=new OffscreenCanvas(w,h);
+      const ctx=off.getContext('2d');
+      ctx.drawImage(img,0,0,w,h);
+
       const id=ctx.getImageData(0,0,w,h).data;
-
-      const stitchPoints=[];
-      const gridW=Math.floor(w/cell), gridH=Math.floor(h/cell);
+      const cells=[];
       for(let gy=0;gy<gridH;gy++){
+        const row=[];
         for(let gx=0;gx<gridW;gx++){
-          let sum=0,cnt=0;
+          let sr=0,sg=0,sb=0,cnt=0;
           for(let yy=gy*cell;yy<(gy+1)*cell;yy++){
             for(let xx=gx*cell;xx<(gx+1)*cell;xx++){
               const i=(yy*w+xx)*4;
-              sum+=0.299*id[i]+0.587*id[i+1]+0.114*id[i+2]; cnt++;
+              sr+=id[i]; sg+=id[i+1]; sb+=id[i+2]; cnt++;
             }
           }
-          if(sum/cnt<=bw){
-            const x0=gx*cell,y0=gy*cell,x1=x0+cell,y1=y0+cell;
-            const n=Math.max(1,Math.ceil(cell/step));
-            for(let i=0;i<=n;i++){ const t=i/n; stitchPoints.push([x0+(x1-x0)*t,y0+(y1-y0)*t]); }
-            for(let i=0;i<=n;i++){ const t=i/n; stitchPoints.push([x1+(x0-x1)*t,y0+(y1-y0)*t]); }
+          const lum=Math.round(0.299*(sr/cnt)+0.587*(sg/cnt)+0.114*(sb/cnt));
+          row.push({black: lum<=(bwThreshold|0)?1:0});
+        }
+        cells.push(row);
+      }
+
+      const step=Math.max(1,Math.min(16,Number(stitchStep)||4));
+      const stitchPoints=[];
+      for(let gy=0;gy<gridH;gy++){
+        for(let gx=0;gx<gridW;gx++){
+          if(!cells[gy][gx].black) continue;
+          const x0=gx*cell,y0=gy*cell;
+          const x1=x0+cell,y1=y0+cell;
+          const L=Math.hypot(x1-x0,y1-y0);
+          const n=Math.max(1,Math.ceil(L/step));
+          for(let i=0;i<=n;i++){
+            const t=i/n;
+            stitchPoints.push([x0+(x1-x0)*t,y0+(y1-y0)*t]);
+          }
+          const L2=Math.hypot(x0-x1,y1-y0);
+          const n2=Math.max(1,Math.ceil(L2/step));
+          for(let i=0;i<=n2;i++){
+            const t=i/n2;
+            stitchPoints.push([x1+(x0-x1)*t,y0+(y1-y0)*t]);
           }
         }
       }
 
-      const dstCoords=stitchPoints.map(p=>[Math.round(p[0]*scale),Math.round(p[1]*scale)]);
-      const dstBlob=new Blob([buildDST(dstCoords)],{type:'application/octet-stream'});
+      if(stitchPoints.length<2) stitchPoints.push([0,0],[10,10]);
 
-      // SVG preview
-      let svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><image href="${reader.result}" width="${w}" height="${h}"/><g stroke="black" stroke-width="1">`;
-      stitchPoints.forEach(p=>{ svg+=`<circle cx="${p[0]}" cy="${p[1]}" r="0.5" fill="black"/>`; });
-      svg+='</g></svg>';
-      document.getElementById('svgPreview').innerHTML=`<object type="image/svg+xml" data="data:image/svg+xml;base64,${btoa(svg)}" style="width:100%;height:100%"></object>`;
+      const merged=[];
+      for(const p of stitchPoints){
+        if(merged.length===0) merged.push(p);
+        else{
+          const last=merged[merged.length-1];
+          if(Math.hypot(last[0]-p[0],last[1]-p[1])>=0.8) merged.push(p);
+        }
+      }
 
-      const dl=document.getElementById('downloadBtns'); dl.innerHTML='';
-      const btnDST=document.createElement('button'); btnDST.textContent='⬇️ DST صحيح'; btnDST.onclick=()=>forceDownload(dstBlob,'molfa_output.dst');
-      dl.appendChild(btnDST);
-    };
+      const scale=Number(exportScale)||0.2;
+      const dstCoords=merged.map(p=>[Math.round(p[0]*scale),Math.round(p[1]*scale)]);
+      postMessage({dstCoords, merged, w, h});
+    }catch(err){ postMessage({error:err.message||String(err)}); }
   };
-  reader.readAsDataURL(f);
+});
+
+const fileInput=document.getElementById('file');
+const btn=document.getElementById('process');
+const preview=document.getElementById('svgPreview');
+const dlContainer=document.getElementById('downloadBtns');
+const cellSizeInput=document.getElementById('cellSize');
+const bwThresholdInput=document.getElementById('bwThreshold');
+const stitchStepInput=document.getElementById('stitchStep');
+const exportScaleInput=document.getElementById('exportScale');
+
+worker.onmessage=ev=>{
+  if(ev.data.error){ log('خطأ: '+ev.data.error); return; }
+  log('تمت المعالجة — نقاط: '+ev.data.dstCoords.length);
+
+  // SVG preview
+  let svg=`<svg xmlns='http://www.w3.org/2000/svg' width='${ev.data.w}' height='${ev.data.h}' viewBox='0 0 ${ev.data.w} ${ev.data.h}'>`;
+  svg+=`<rect width='100%' height='100%' fill='white'></rect>`;
+  svg+=`<g stroke='black' stroke-width='1' stroke-linecap='round'>`;
+  svg+=`<polyline fill='none' points='${ev.data.merged.map(p=>p[0]+','+p[1]).join(' ')}'/>`;
+  svg+=`</g></svg>`;
+  preview.innerHTML=`<object type="image/svg+xml" data="data:image/svg+xml;base64,${btoa(svg)}" style="width:100%;height:100%"></object>`;
+
+  dlContainer.innerHTML='';
+  const btnDST=document.createElement('button');
+  btnDST.className='bg-green-600 text-white py-2 rounded';
+  btnDST.textContent='⬇️ DST';
+  btnDST.onclick=()=>forceDownload(new Blob([buildDST(ev.data.dstCoords)],{type:'application/octet-stream'}),'molfa_output.dst');
+  dlContainer.appendChild(btnDST);
 };
+
+btn.addEventListener('click',()=>{
+  const f=fileInput.files[0];
+  if(!f){ alert('اختر صورة'); return; }
+  const reader=new FileReader();
+  reader.onload=()=>worker.postMessage({
+    dataURL:reader.result,
+    cellSize:Number(cellSizeInput.value||8),
+    bwThreshold:Number(bwThresholdInput.value||128),
+    stitchStep:Number(stitchStepInput.value||4),
+    exportScale:Number(exportScaleInput.value||0.2)
+  });
+  reader.readAsDataURL(f);
+});
 </script>
 </body>
 </html>
