@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Molfa — شبكة تطريز صحيحة</title>
+<title>Molfa — شبكة تطريز نهائية</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
 body{font-family:Inter,system-ui,Arial; background:#f3f4f6; color:#111;}
@@ -15,8 +15,8 @@ button{cursor:pointer;}
 </head>
 <body class="min-h-screen flex flex-col">
 <header class="bg-indigo-700 text-white py-4 shadow text-center">
-<h1 class="text-xl font-semibold">Molfa — شبكة تطريز صحيحة (DST)</h1>
-<p>كل خانة سوداء → غرزة X منفصلة + تصدير DST حقيقي</p>
+<h1 class="text-xl font-semibold">Molfa — شبكة تطريز نهائية</h1>
+<p>الصورة مدمجة + كل خانة سوداء → غرزة X منفصلة + DST + PNG معاينة</p>
 </header>
 
 <main class="container mx-auto p-4 md:p-6 flex-grow">
@@ -47,7 +47,7 @@ button{cursor:pointer;}
 </div>
 
 <div class="mt-4 flex gap-2">
-<button id="process" class="flex-1 bg-indigo-600 text-white py-2 rounded">🔧 توليد + DST صحيح</button>
+<button id="process" class="flex-1 bg-indigo-600 text-white py-2 rounded">🔧 توليد + DST + PNG</button>
 </div>
 
 <div id="downloadBtns" class="mt-3 grid grid-cols-1 gap-2"></div>
@@ -79,7 +79,7 @@ function forceDownload(blob,name){
   setTimeout(()=>URL.revokeObjectURL(url),2000); 
 }
 
-// توليد DST لكل X بشكل منفصل
+// DST helper
 function buildDST(coords){
   const header = new Uint8Array(512); 
   const body = [];
@@ -150,15 +150,13 @@ const worker = makeWorkerFromFunc(function(){
           const x1=x0+cell,y1=y0+cell;
 
           // غرزة X منفصلة
-          const L=Math.hypot(x1-x0,y1-y0);
-          const n=Math.max(1,Math.ceil(L/step));
+          const n=Math.max(1,Math.ceil(cell/step));
           for(let i=0;i<=n;i++){
             const t=i/n;
             stitchPoints.push([x0+(x1-x0)*t,y0+(y1-y0)*t]);
           }
-          const n2=Math.max(1,Math.ceil(L/step));
-          for(let i=0;i<=n2;i++){
-            const t=i/n2;
+          for(let i=0;i<=n;i++){
+            const t=i/n;
             stitchPoints.push([x1+(x0-x1)*t,y0+(y1-y0)*t]);
           }
         }
@@ -166,7 +164,7 @@ const worker = makeWorkerFromFunc(function(){
 
       const scale=Number(exportScale)||0.2;
       const dstCoords=stitchPoints.map(p=>[Math.round(p[0]*scale),Math.round(p[1]*scale)]);
-      postMessage({dstCoords, stitchPoints, w, h});
+      postMessage({dstCoords, stitchPoints, w, h, idDataURL:dataURL});
     }catch(err){ postMessage({error:err.message||String(err)}); }
   };
 });
@@ -186,7 +184,7 @@ worker.onmessage=ev=>{
 
   // SVG preview
   let svg=`<svg xmlns='http://www.w3.org/2000/svg' width='${ev.data.w}' height='${ev.data.h}' viewBox='0 0 ${ev.data.w} ${ev.data.h}'>`;
-  svg+=`<rect width='100%' height='100%' fill='white'></rect>`;
+  svg+=`<image href='${ev.data.idDataURL}' x='0' y='0' width='${ev.data.w}' height='${ev.data.h}'></image>`;
   svg+=`<g stroke='black' stroke-width='1' stroke-linecap='round'>`;
   ev.data.stitchPoints.forEach(p=>{
     svg+=`<circle cx='${p[0]}' cy='${p[1]}' r='0.5' fill='black'></circle>`;
@@ -194,12 +192,32 @@ worker.onmessage=ev=>{
   svg+=`</g></svg>`;
   preview.innerHTML=`<object type="image/svg+xml" data="data:image/svg+xml;base64,${btoa(svg)}" style="width:100%;height:100%"></object>`;
 
-  dlContainer.innerHTML='';
-  const btnDST=document.createElement('button');
-  btnDST.className='bg-green-600 text-white py-2 rounded';
-  btnDST.textContent='⬇️ DST صحيح';
-  btnDST.onclick=()=>forceDownload(new Blob([buildDST(ev.data.dstCoords)],{type:'application/octet-stream'}),'molfa_output.dst');
-  dlContainer.appendChild(btnDST);
+  // PNG preview
+  const canvas=document.createElement('canvas');
+  canvas.width=ev.data.w; canvas.height=ev.data.h;
+  const ctx=canvas.getContext('2d');
+  const img=new Image();
+  img.src=ev.data.idDataURL;
+  img.onload=()=>{
+    ctx.drawImage(img,0,0);
+    ctx.fillStyle='black';
+    ev.data.stitchPoints.forEach(p=>{
+      ctx.fillRect(p[0],p[1],1,1);
+    });
+    const pngBlob=new Blob([canvas.toDataURL('image/png').split(',')[1]],{type:'image/png'});
+    dlContainer.innerHTML='';
+    const btnDST=document.createElement('button');
+    btnDST.className='bg-green-600 text-white py-2 rounded';
+    btnDST.textContent='⬇️ DST صحيح';
+    btnDST.onclick=()=>forceDownload(new Blob([buildDST(ev.data.dstCoords)],{type:'application/octet-stream'}),'molfa_output.dst');
+    dlContainer.appendChild(btnDST);
+
+    const btnPNG=document.createElement('button');
+    btnPNG.className='bg-gray-700 text-white py-2 rounded';
+    btnPNG.textContent='⬇️ PNG معاينة';
+    btnPNG.onclick=()=>forceDownload(canvas.toBlob(blob=>forceDownload(blob,'molfa_preview.png')),'molfa_preview.png');
+    dlContainer.appendChild(btnPNG);
+  };
 };
 
 btn.addEventListener('click',()=>{
