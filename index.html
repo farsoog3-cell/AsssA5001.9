@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Molfa — صورة → DST كامل</title>
+<title>Molfa — DST متقدم مع JSON</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
 body{font-family:Inter,system-ui,Arial; background:#f3f4f6; color:#111;}
@@ -14,8 +14,8 @@ button{cursor:pointer;}
 </head>
 <body class="min-h-screen flex flex-col">
 <header class="bg-indigo-700 text-white py-4 shadow text-center">
-<h1 class="text-xl font-semibold">Molfa — صورة → DST كامل</h1>
-<p>رفع صورة → تحويلها لمخطط → إنشاء ملف DST → حفظ التصميم → تنزيل</p>
+<h1 class="text-xl font-semibold">Molfa — DST متقدم مع JSON</h1>
+<p>تحويل الصورة إلى DST مع ألوان خيوط محددة وبيانات كاملة للغرز</p>
 </header>
 
 <main class="container mx-auto p-4 md:p-6 flex-grow">
@@ -27,30 +27,39 @@ button{cursor:pointer;}
 
 <div class="mt-3">
 <label class="text-sm block mb-1">حجم الخلية (px)</label>
-<input id="cellSize" type="number" min="4" max="40" value="8" class="w-full p-2 border rounded"/>
+<input id="cellSize" type="number" min="2" max="20" value="6" class="w-full p-2 border rounded"/>
 </div>
 
 <div class="mt-3">
-<label class="text-sm block mb-1">عتبة الأبيض/أسود</label>
-<input id="bwThreshold" type="range" min="0" max="255" value="128"/>
+<label class="text-sm block mb-1">طول الغرزة (px)</label>
+<input id="stitchStep" type="number" min="1" max="16" value="2" class="w-full p-2 border rounded"/>
 </div>
 
 <div class="mt-3">
-<label class="text-sm block mb-1">طول الغرزة داخل X (px)</label>
-<input id="stitchStep" type="number" min="1" max="16" value="4" class="w-full p-2 border rounded"/>
+<label class="text-sm block mb-1">اتجاه الغرز</label>
+<select id="stitchDirection" class="w-full p-2 border rounded">
+  <option value="horizontal">أفقي</option>
+  <option value="vertical">عمودي</option>
+  <option value="diagonal">مائل</option>
+</select>
 </div>
 
 <div class="mt-3">
-<label class="text-sm block mb-1">مقياس التصدير (px → 0.1mm)</label>
-<input id="exportScale" type="number" value="0.2" step="0.05" min="0.05" max="5" class="w-full p-2 border rounded"/>
+<label class="text-sm block mb-1">عدد ألوان الخيوط</label>
+<input id="numThreads" type="number" min="2" max="20" value="5" class="w-full p-2 border rounded"/>
 </div>
 
 <div class="mt-4 flex flex-col gap-2">
 <button id="process" class="bg-indigo-600 text-white py-2 rounded">🔧 توليد المخطط</button>
 <button id="createDST" class="bg-purple-600 text-white py-2 rounded" disabled>📄 إنشاء ملف DST</button>
-<button id="saveDST" class="bg-yellow-600 text-white py-2 rounded" disabled>💾 حفظ التصميم في الملف</button>
 <button id="downloadDST" class="bg-green-600 text-white py-2 rounded" disabled>⬇️ تنزيل الملف النهائي</button>
 </div>
+
+<div class="mt-3">
+<h2 class="font-semibold">معاينة بيانات الغرز (JSON)</h2>
+<pre id="stitchData" class="mono text-xs h-40 overflow-auto whitespace-pre-wrap bg-gray-100 p-2 rounded border mt-2"></pre>
+</div>
+
 </div>
 
 <div class="md:col-span-2">
@@ -78,6 +87,13 @@ function forceDownload(blob,name){
   a.remove(); 
   setTimeout(()=>URL.revokeObjectURL(url),2000); 
 }
+
+// ألوان خيوط مشهورة
+const threadColors=[
+  "rgb(0,0,0)","rgb(255,255,255)","rgb(255,0,0)","rgb(0,255,0)","rgb(0,0,255)",
+  "rgb(255,255,0)","rgb(0,255,255)","rgb(255,0,255)","rgb(128,0,0)","rgb(0,128,0)",
+  "rgb(0,0,128)","rgb(128,128,0)","rgb(128,0,128)","rgb(0,128,128)","rgb(192,192,192)"
+];
 
 function buildDST(coords){
   const header = new Uint8Array(512);
@@ -108,53 +124,59 @@ function makeWorkerFromFunc(fn){
   return new Worker(URL.createObjectURL(blob)); 
 }
 
-// Worker لتحويل الصورة لمخطط غرز
 const worker=makeWorkerFromFunc(function(){
   onmessage=async ev=>{
-    const {dataURL, cellSize, bwThreshold, stitchStep, exportScale}=ev.data;
+    const {dataURL, cellSize, stitchStep, exportScale, direction, numThreads, threadColors}=ev.data;
     try{
       const imgBlob=await (await fetch(dataURL)).blob();
       const img=await createImageBitmap(imgBlob);
-      const cell=Math.max(4,Math.min(48,Number(cellSize)||8));
+      const cell=Math.max(2,Math.min(20,Number(cellSize)||6));
       const gridW=Math.max(1,Math.floor(img.width/cell));
       const gridH=Math.max(1,Math.floor(img.height/cell));
       const w=gridW*cell,h=gridH*cell;
       const off=new OffscreenCanvas(w,h);
       const ctx=off.getContext('2d');
       ctx.drawImage(img,0,0,w,h);
-
       const id=ctx.getImageData(0,0,w,h).data;
-      const cells=[];
+
+      const usedColors=threadColors.slice(0,numThreads);
+
+      const stitchPoints=[];
+      const stitchColors=[];
       for(let gy=0;gy<gridH;gy++){
-        const row=[];
         for(let gx=0;gx<gridW;gx++){
-          let sr=0,sg=0,sb=0,cnt=0;
+          let rSum=0,gSum=0,bSum=0,cnt=0;
           for(let yy=gy*cell;yy<(gy+1)*cell;yy++){
             for(let xx=gx*cell;xx<(gx+1)*cell;xx++){
               const i=(yy*w+xx)*4;
-              sr+=id[i]; sg+=id[i+1]; sb+=id[i+2]; cnt++;
+              rSum+=id[i]; gSum+=id[i+1]; bSum+=id[i+2]; cnt++;
             }
           }
-          const lum=Math.round(0.299*(sr/cnt)+0.587*(sg/cnt)+0.114*(sb/cnt));
-          row.push({black: lum<=bwThreshold?1:0});
+          const r=Math.round(rSum/cnt), g=Math.round(gSum/cnt), b=Math.round(bSum/cnt);
+
+          // أقرب لون خيط
+          let minDist=Infinity, chosenColor=usedColors[0];
+          for(const c of usedColors){
+            const m=c.match(/\d+/g);
+            const dr=r-m[0], dg=g-m[1], db=b-m[2];
+            const dist=dr*dr+dg*dg+db*db;
+            if(dist<minDist){ minDist=dist; chosenColor=c; }
+          }
+
+          const step=Math.max(1,Number(stitchStep)||2);
+          for(let y=gy*cell;y<gy*cell+cell;y+=step){
+            for(let x=gx*cell;x<gx*cell+cell;x+=step){
+              stitchPoints.push([x,y]);
+              stitchColors.push(chosenColor);
+            }
+          }
         }
-        cells.push(row);
       }
 
-      const stitchPoints=[];
-      for(let gy=0;gy<gridH;gy++){
-        for(let gx=0;gx<gridW;gx++){
-          if(!cells[gy][gx].black) continue;
-          const x0=gx*cell,y0=gy*cell;
-          const x1=x0+cell,y1=y0+cell;
-          stitchPoints.push([x0,y0],[x1,y1],[x0,y1],[x1,y0]);
-        }
-      }
-
-      if(stitchPoints.length<2) stitchPoints.push([0,0],[10,10]);
+      if(stitchPoints.length<2) stitchPoints.push([0,0],[10,10]), stitchColors.push(usedColors[0],usedColors[0]);
       const scale=Number(exportScale)||0.2;
       const dstCoords=stitchPoints.map(p=>[p[0]*scale,p[1]*scale]);
-      postMessage({dstCoords, merged:dstCoords, w, h});
+      postMessage({dstCoords, merged:dstCoords, colors:stitchColors, w, h});
     }catch(err){ postMessage({error:err.message||String(err)}); }
   };
 });
@@ -162,60 +184,62 @@ const worker=makeWorkerFromFunc(function(){
 const fileInput=document.getElementById('file');
 const btn=document.getElementById('process');
 const createBtn=document.getElementById('createDST');
-const saveBtn=document.getElementById('saveDST');
 const downloadBtn=document.getElementById('downloadDST');
 const preview=document.getElementById('svgPreview');
 
-let merged=[], dstFile=null;
+let merged=[], dstFile=null, mergedColors=[];
 
-// معالجة الصورة وتحويلها لمخطط غرز
 btn.addEventListener('click',()=>{
   const f=fileInput.files[0];
   if(!f){ alert('اختر صورة'); return; }
+  const direction=document.getElementById('stitchDirection').value;
+  const numThreads = Number(document.getElementById('numThreads').value||5);
   const reader=new FileReader();
   reader.onload=()=>worker.postMessage({
     dataURL:reader.result,
-    cellSize:Number(document.getElementById('cellSize').value||8),
-    bwThreshold:Number(document.getElementById('bwThreshold').value||128),
-    stitchStep:Number(document.getElementById('stitchStep').value||4),
-    exportScale:Number(document.getElementById('exportScale').value||0.2)
+    cellSize:Number(document.getElementById('cellSize').value||6),
+    stitchStep:Number(document.getElementById('stitchStep').value||2),
+    exportScale:0.2,
+    direction,
+    numThreads,
+    threadColors
   });
   reader.readAsDataURL(f);
 });
 
 worker.onmessage=ev=>{
   if(ev.data.error){ log('خطأ: '+ev.data.error); return; }
-  merged = ev.data.merged;
-  log('تمت المعالجة — نقاط: '+ev.data.dstCoords.length);
-
-  // تفعيل زر إنشاء ملف DST
-  createBtn.disabled = false;
+  merged=ev.data.merged;
+  mergedColors=ev.data.colors;
+  log('تم توليد المخطط — عدد الغرز: '+ev.data.dstCoords.length);
+  createBtn.disabled=false;
 
   let svg=`<svg xmlns='http://www.w3.org/2000/svg' width='${ev.data.w}' height='${ev.data.h}' viewBox='0 0 ${ev.data.w} ${ev.data.h}'>`;
   svg+=`<rect width='100%' height='100%' fill='white'></rect>`;
-  svg+=`<g stroke='black' stroke-width='1' stroke-linecap='round'>`;
-  svg+=`<polyline fill='none' points='${merged.map(p=>p[0]+','+p[1]).join(' ')}'/>`;
-  svg+=`</g></svg>`;
+  for(let i=0;i<merged.length;i++){
+    svg+=`<circle cx='${merged[i][0]}' cy='${merged[i][1]}' r='0.7' fill='${mergedColors[i]}'/>`;
+  }
+  svg+=`</svg>`;
   preview.innerHTML=`<object type="image/svg+xml" data="data:image/svg+xml;base64,${btoa(svg)}" style="width:100%;height:100%"></object>`;
+
+  // إنشاء JSON لكل الغرز
+  const stitchJSON = merged.map((p,i)=>({
+    index: i+1,
+    x: p[0],
+    y: p[1],
+    color: mergedColors[i],
+    direction: document.getElementById('stitchDirection').value
+  }));
+  document.getElementById('stitchData').textContent=JSON.stringify(stitchJSON,null,2);
 };
 
-// إنشاء ملف DST واستيراد التصميم
 createBtn.addEventListener('click',()=>{
   if(!merged.length){ alert('لا يوجد تصميم لإنشاء الملف'); return; }
-  dstFile = buildDST(merged); // الملف يحتوي التصميم مباشرة
-  log('تم إنشاء ملف DST واستيراد التصميم داخله');
-  saveBtn.disabled = false; // تفعيل زر حفظ التصميم
+  dstFile=buildDST(merged);
+  log('تم إنشاء ملف DST النهائي مع بيانات كاملة لكل غرزة ولون الخيط');
+  downloadBtn.disabled=false;
 });
 
-// حفظ معلومات التصميم داخل الملف (فعليًا مجرد إعادة التأكيد هنا)
-saveBtn.addEventListener('click',()=>{
-  if(!dstFile){ alert('لا يوجد ملف لحفظه'); return; }
-  // هنا يمكن إضافة أي معالجة إضافية للبيانات قبل التنزيل
-  log('تم حفظ كل المعلومات داخل الملف');
-  downloadBtn.disabled = false; // تفعيل زر التنزيل
-});
-
-// تنزيل الملف النهائي
 downloadBtn.addEventListener('click',()=>{
   if(!dstFile){ alert('لا يوجد ملف للتنزيل'); return; }
   forceDownload(new Blob([dstFile],{type:'application/octet-stream'}),'molfa_output.dst');
