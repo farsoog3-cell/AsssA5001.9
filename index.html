@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Molfa — شبكة تطريز نهائية</title>
+<title>Molfa — شبكة تطريز نهائية محسّنة</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
 body{font-family:Inter,system-ui,Arial; background:#f3f4f6; color:#111;}
@@ -15,8 +15,8 @@ button{cursor:pointer;}
 </head>
 <body class="min-h-screen flex flex-col">
 <header class="bg-indigo-700 text-white py-4 shadow text-center">
-<h1 class="text-xl font-semibold">Molfa — شبكة تطريز نهائية</h1>
-<p>الصورة مدمجة + كل خانة سوداء → غرزة X منفصلة + DST + PNG معاينة</p>
+<h1 class="text-xl font-semibold">Molfa — شبكة تطريز محسّنة</h1>
+<p>الصورة مدمجة + كل خانة سوداء → غرزة X منفصلة + DST + معاينة SVG + معالجة أسرع للصور الكبيرة</p>
 </header>
 
 <main class="container mx-auto p-4 md:p-6 flex-grow">
@@ -47,7 +47,7 @@ button{cursor:pointer;}
 </div>
 
 <div class="mt-4 flex gap-2">
-<button id="process" class="flex-1 bg-indigo-600 text-white py-2 rounded">🔧 توليد + DST + PNG</button>
+<button id="process" class="flex-1 bg-indigo-600 text-white py-2 rounded">🔧 توليد + DST + SVG</button>
 </div>
 
 <div id="downloadBtns" class="mt-3 grid grid-cols-1 gap-2"></div>
@@ -79,10 +79,9 @@ function forceDownload(blob,name){
   setTimeout(()=>URL.revokeObjectURL(url),2000); 
 }
 
-// DST helper
 function buildDST(coords){
-  const header = new Uint8Array(512); 
-  const body = [];
+  const header=new Uint8Array(512);
+  const body=[];
   let prevx=0, prevy=0;
   coords.forEach(p=>{
     const x=p[0], y=p[1];
@@ -90,7 +89,7 @@ function buildDST(coords){
     while(Math.abs(dx)>121||Math.abs(dy)>121){
       const sx=Math.max(-121,Math.min(121,dx));
       const sy=Math.max(-121,Math.min(121,dy));
-      body.push(sx&0xFF, sy&0xFF, 0x01); 
+      body.push(sx&0xFF, sy&0xFF, 0x01);
       dx-=sx; dy-=sy; prevx+=sx; prevy+=sy;
     }
     body.push(dx&0xFF, dy&0xFF, 0x03);
@@ -103,54 +102,39 @@ function buildDST(coords){
   return arr;
 }
 
-function makeWorkerFromFunc(fn){ 
-  const src = fn.toString(); 
-  const blob=new Blob(['('+src+')()'],{type:'application/javascript'}); 
-  return new Worker(URL.createObjectURL(blob)); 
-}
+const worker=new Worker(URL.createObjectURL(new Blob([`
+onmessage=async e=>{
+  const {dataURL, cellSize, bwThreshold, stitchStep, exportScale}=e.data;
+  try{
+    const imgBlob=await (await fetch(dataURL)).blob();
+    const img=await createImageBitmap(imgBlob);
+    const maxSize=800; // لتقليل حجم الصورة الكبيرة
+    let w=img.width, h=img.height;
+    if(Math.max(w,h)>maxSize){
+      const ratio=maxSize/Math.max(w,h);
+      w=Math.round(w*ratio); h=Math.round(h*ratio);
+    }
+    const off=new OffscreenCanvas(w,h);
+    const ctx=off.getContext('2d');
+    ctx.drawImage(img,0,0,w,h);
 
-const worker = makeWorkerFromFunc(function(){
-  onmessage=async ev=>{
-    const {dataURL, cellSize, bwThreshold, stitchStep, exportScale}=ev.data;
-    try{
-      const imgBlob=await (await fetch(dataURL)).blob();
-      const img=await createImageBitmap(imgBlob);
-      const cell=Math.max(4,Math.min(48,Number(cellSize)||8));
-      const gridW=Math.max(1,Math.floor(img.width/cell));
-      const gridH=Math.max(1,Math.floor(img.height/cell));
-      const w=gridW*cell,h=gridH*cell;
-      const off=new OffscreenCanvas(w,h);
-      const ctx=off.getContext('2d');
-      ctx.drawImage(img,0,0,w,h);
-
-      const id=ctx.getImageData(0,0,w,h).data;
-      const cells=[];
-      for(let gy=0;gy<gridH;gy++){
-        const row=[];
-        for(let gx=0;gx<gridW;gx++){
-          let sr=0,sg=0,sb=0,cnt=0;
-          for(let yy=gy*cell;yy<(gy+1)*cell;yy++){
-            for(let xx=gx*cell;xx<(gx+1)*cell;xx++){
-              const i=(yy*w+xx)*4;
-              sr+=id[i]; sg+=id[i+1]; sb+=id[i+2]; cnt++;
-            }
+    const id=ctx.getImageData(0,0,w,h).data;
+    const cell=Math.max(4,Math.min(48,cellSize||8));
+    const gridW=Math.floor(w/cell), gridH=Math.floor(h/cell);
+    const stitchPoints=[];
+    for(let gy=0;gy<gridH;gy++){
+      for(let gx=0;gx<gridW;gx++){
+        let sum=0, cnt=0;
+        for(let yy=gy*cell;yy<(gy+1)*cell;yy++){
+          for(let xx=gx*cell;xx<(gx+1)*cell;xx++){
+            const i=(yy*w+xx)*4;
+            sum+=0.299*id[i]+0.587*id[i+1]+0.114*id[i+2]; cnt++;
           }
-          const lum=Math.round(0.299*(sr/cnt)+0.587*(sg/cnt)+0.114*(sb/cnt));
-          row.push({black: lum<=(bwThreshold|0)?1:0});
         }
-        cells.push(row);
-      }
-
-      const step=Math.max(1,Math.min(16,Number(stitchStep)||4));
-      const stitchPoints=[];
-      for(let gy=0;gy<gridH;gy++){
-        for(let gx=0;gx<gridW;gx++){
-          if(!cells[gy][gx].black) continue;
-          const x0=gx*cell,y0=gy*cell;
-          const x1=x0+cell,y1=y0+cell;
-
-          // غرزة X منفصلة
-          const n=Math.max(1,Math.ceil(cell/step));
+        const black=(sum/cnt)<=bwThreshold;
+        if(black){
+          const x0=gx*cell,y0=gy*cell,x1=x0+cell,y1=y0+cell;
+          const n=Math.max(1,Math.ceil(cell/stitchStep));
           for(let i=0;i<=n;i++){
             const t=i/n;
             stitchPoints.push([x0+(x1-x0)*t,y0+(y1-y0)*t]);
@@ -161,13 +145,13 @@ const worker = makeWorkerFromFunc(function(){
           }
         }
       }
-
-      const scale=Number(exportScale)||0.2;
-      const dstCoords=stitchPoints.map(p=>[Math.round(p[0]*scale),Math.round(p[1]*scale)]);
-      postMessage({dstCoords, stitchPoints, w, h, idDataURL:dataURL});
-    }catch(err){ postMessage({error:err.message||String(err)}); }
-  };
-});
+    }
+    const scale=exportScale||0.2;
+    const dstCoords=stitchPoints.map(p=>[Math.round(p[0]*scale),Math.round(p[1]*scale)]);
+    postMessage({dstCoords, stitchPoints, w, h, dataURL});
+  }catch(err){ postMessage({error:err.message||err.toString()}); }
+}
+`],{type:'application/javascript'})));
 
 const fileInput=document.getElementById('file');
 const btn=document.getElementById('process');
@@ -183,41 +167,22 @@ worker.onmessage=ev=>{
   log('تمت المعالجة — نقاط: '+ev.data.dstCoords.length);
 
   // SVG preview
-  let svg=`<svg xmlns='http://www.w3.org/2000/svg' width='${ev.data.w}' height='${ev.data.h}' viewBox='0 0 ${ev.data.w} ${ev.data.h}'>`;
-  svg+=`<image href='${ev.data.idDataURL}' x='0' y='0' width='${ev.data.w}' height='${ev.data.h}'></image>`;
-  svg+=`<g stroke='black' stroke-width='1' stroke-linecap='round'>`;
+  let svg=\`<svg xmlns='http://www.w3.org/2000/svg' width='\${ev.data.w}' height='\${ev.data.h}' viewBox='0 0 \${ev.data.w} \${ev.data.h}'>\`;
+  svg+=\`<image href='\${ev.data.dataURL}' x='0' y='0' width='\${ev.data.w}' height='\${ev.data.h}'></image>\`;
+  svg+=\`<g stroke='black' stroke-width='1' stroke-linecap='round'>\`;
   ev.data.stitchPoints.forEach(p=>{
-    svg+=`<circle cx='${p[0]}' cy='${p[1]}' r='0.5' fill='black'></circle>`;
+    svg+=\`<circle cx='\${p[0]}' cy='\${p[1]}' r='0.5' fill='black'></circle>\`;
   });
-  svg+=`</g></svg>`;
-  preview.innerHTML=`<object type="image/svg+xml" data="data:image/svg+xml;base64,${btoa(svg)}" style="width:100%;height:100%"></object>`;
+  svg+=\`</g></svg>\`;
+  preview.innerHTML=\`<object type="image/svg+xml" data="data:image/svg+xml;base64,\${btoa(svg)}" style="width:100%;height:100%"></object>\`;
 
-  // PNG preview
-  const canvas=document.createElement('canvas');
-  canvas.width=ev.data.w; canvas.height=ev.data.h;
-  const ctx=canvas.getContext('2d');
-  const img=new Image();
-  img.src=ev.data.idDataURL;
-  img.onload=()=>{
-    ctx.drawImage(img,0,0);
-    ctx.fillStyle='black';
-    ev.data.stitchPoints.forEach(p=>{
-      ctx.fillRect(p[0],p[1],1,1);
-    });
-    const pngBlob=new Blob([canvas.toDataURL('image/png').split(',')[1]],{type:'image/png'});
-    dlContainer.innerHTML='';
-    const btnDST=document.createElement('button');
-    btnDST.className='bg-green-600 text-white py-2 rounded';
-    btnDST.textContent='⬇️ DST صحيح';
-    btnDST.onclick=()=>forceDownload(new Blob([buildDST(ev.data.dstCoords)],{type:'application/octet-stream'}),'molfa_output.dst');
-    dlContainer.appendChild(btnDST);
-
-    const btnPNG=document.createElement('button');
-    btnPNG.className='bg-gray-700 text-white py-2 rounded';
-    btnPNG.textContent='⬇️ PNG معاينة';
-    btnPNG.onclick=()=>forceDownload(canvas.toBlob(blob=>forceDownload(blob,'molfa_preview.png')),'molfa_preview.png');
-    dlContainer.appendChild(btnPNG);
-  };
+  // DST download
+  dlContainer.innerHTML='';
+  const btnDST=document.createElement('button');
+  btnDST.className='bg-green-600 text-white py-2 rounded';
+  btnDST.textContent='⬇️ DST صحيح';
+  btnDST.onclick=()=>forceDownload(new Blob([buildDST(ev.data.dstCoords)],{type:'application/octet-stream'}),'molfa_output.dst');
+  dlContainer.appendChild(btnDST);
 };
 
 btn.addEventListener('click',()=>{
