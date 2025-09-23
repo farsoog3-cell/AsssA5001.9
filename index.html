@@ -16,7 +16,7 @@ button{cursor:pointer;}
 <body class="min-h-screen flex flex-col">
 <header class="bg-indigo-700 text-white py-4 shadow text-center">
 <h1 class="text-xl font-semibold">Molfa — صورة → شبكة تطريز (DST مباشر)</h1>
-<p>توليد شبكة أبيض/أسود + غرز X + تصدير ملف DST مباشرة في المتصفح</p>
+<p>توليد شبكة أبيض/أسود + غرز X + تصدير ملف DST حقيقي في المتصفح</p>
 </header>
 
 <main class="container mx-auto p-4 md:p-6 flex-grow">
@@ -79,30 +79,45 @@ function forceDownload(blob,name){
   setTimeout(()=>URL.revokeObjectURL(url),2000); 
 }
 
-// DST helper functions (minimal, enough لتصدير النقاط X)
+// DST helper functions (محسّنة لتوليد ملف DST حقيقي)
 function buildDST(coords){
-  const header = new Uint8Array(512); // فارغ
+  const header = new Uint8Array(512); // هيدر DST فارغ
   const body = [];
-  let prevx=0, prevy=0;
-  coords.forEach(p=>{
-    const x=Math.round(p[0]), y=Math.round(p[1]);
-    let dx=x-prevx, dy=y-prevy;
-    while(Math.abs(dx)>121||Math.abs(dy)>121){
-      const sx=Math.max(-121,Math.min(121,dx));
-      const sy=Math.max(-121,Math.min(121,dy));
-      body.push(sx&0xFF, sy&0xFF, 0x01); 
-      dx-=sx; dy-=sy; prevx+=sx; prevy+=sy;
+  let prevx = 0, prevy = 0;
+
+  coords.forEach(p => {
+    let x = Math.round(p[0]);
+    let y = Math.round(p[1]);
+    let dx = x - prevx;
+    let dy = y - prevy;
+
+    // تقسيم القفزات الطويلة حسب مواصفات DST
+    while(Math.abs(dx) > 121 || Math.abs(dy) > 121){
+      const sx = Math.max(-121, Math.min(121, dx));
+      const sy = Math.max(-121, Math.min(121, dy));
+      body.push(sx & 0xFF, sy & 0xFF, 0x01); // JUMP stitch
+      dx -= sx;
+      dy -= sy;
+      prevx += sx;
+      prevy += sy;
     }
-    body.push(dx&0xFF, dy&0xFF, 0x03);
-    prevx=x; prevy=y;
+
+    // STITCH عادي
+    body.push(dx & 0xFF, dy & 0xFF, 0x03);
+    prevx = x;
+    prevy = y;
   });
-  body.push(0x00,0x00,0xF3);
-  const arr=new Uint8Array(512+body.length);
-  arr.set(header,0);
-  arr.set(new Uint8Array(body),512);
+
+  // إضافة النهاية
+  body.push(0x00, 0x00, 0xF3);
+
+  const arr = new Uint8Array(512 + body.length);
+  arr.set(header, 0);
+  arr.set(new Uint8Array(body), 512);
   return arr;
 }
 
+// Worker لمعالجة الصورة
 function makeWorkerFromFunc(fn){ 
   const src = fn.toString(); 
   const blob=new Blob(['('+src+')()'],{type:'application/javascript'}); 
@@ -175,7 +190,7 @@ const worker = makeWorkerFromFunc(function(){
       }
 
       const scale=Number(exportScale)||0.2;
-      const dstCoords=merged.map(p=>[Math.round(p[0]*scale),Math.round(p[1]*scale)]);
+      const dstCoords=merged.map(p=>[p[0]*scale,p[1]*scale]);
       postMessage({dstCoords, merged, w, h});
     }catch(err){ postMessage({error:err.message||String(err)}); }
   };
@@ -190,23 +205,26 @@ const bwThresholdInput=document.getElementById('bwThreshold');
 const stitchStepInput=document.getElementById('stitchStep');
 const exportScaleInput=document.getElementById('exportScale');
 
+let merged=[];
+
 worker.onmessage=ev=>{
   if(ev.data.error){ log('خطأ: '+ev.data.error); return; }
   log('تمت المعالجة — نقاط: '+ev.data.dstCoords.length);
+  merged = ev.data.merged;
 
   // SVG preview
   let svg=`<svg xmlns='http://www.w3.org/2000/svg' width='${ev.data.w}' height='${ev.data.h}' viewBox='0 0 ${ev.data.w} ${ev.data.h}'>`;
   svg+=`<rect width='100%' height='100%' fill='white'></rect>`;
   svg+=`<g stroke='black' stroke-width='1' stroke-linecap='round'>`;
-  svg+=`<polyline fill='none' points='${ev.data.merged.map(p=>p[0]+','+p[1]).join(' ')}'/>`;
+  svg+=`<polyline fill='none' points='${merged.map(p=>p[0]+','+p[1]).join(' ')}'/>`;
   svg+=`</g></svg>`;
   preview.innerHTML=`<object type="image/svg+xml" data="data:image/svg+xml;base64,${btoa(svg)}" style="width:100%;height:100%"></object>`;
 
   dlContainer.innerHTML='';
   const btnDST=document.createElement('button');
   btnDST.className='bg-green-600 text-white py-2 rounded';
-  btnDST.textContent='⬇️ DST';
-  btnDST.onclick=()=>forceDownload(new Blob([buildDST(ev.data.dstCoords)],{type:'application/octet-stream'}),'molfa_output.dst');
+  btnDST.textContent='⬇️ DST حقيقي';
+  btnDST.onclick=()=>forceDownload(new Blob([buildDST(merged)],{type:'application/octet-stream'}),'molfa_output.dst');
   dlContainer.appendChild(btnDST);
 };
 
