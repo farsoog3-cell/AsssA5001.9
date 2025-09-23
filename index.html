@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Molfa — DST متقدم مع JSON</title>
+<title>Molfa — DST سريع</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
 body{font-family:Inter,system-ui,Arial; background:#f3f4f6; color:#111;}
@@ -14,8 +14,8 @@ button{cursor:pointer;}
 </head>
 <body class="min-h-screen flex flex-col">
 <header class="bg-indigo-700 text-white py-4 shadow text-center">
-<h1 class="text-xl font-semibold">Molfa — DST متقدم مع JSON</h1>
-<p>تحويل الصورة إلى DST مع ألوان خيوط محددة وبيانات كاملة للغرز</p>
+<h1 class="text-xl font-semibold">Molfa — DST سريع مع JSON</h1>
+<p>تحويل الصورة إلى DST مع معاينة SVG وبيانات JSON بسرعة</p>
 </header>
 
 <main class="container mx-auto p-4 md:p-6 flex-grow">
@@ -27,26 +27,17 @@ button{cursor:pointer;}
 
 <div class="mt-3">
 <label class="text-sm block mb-1">حجم الخلية (px)</label>
-<input id="cellSize" type="number" min="2" max="20" value="6" class="w-full p-2 border rounded"/>
+<input id="cellSize" type="number" min="2" max="20" value="8" class="w-full p-2 border rounded"/>
 </div>
 
 <div class="mt-3">
 <label class="text-sm block mb-1">طول الغرزة (px)</label>
-<input id="stitchStep" type="number" min="1" max="16" value="2" class="w-full p-2 border rounded"/>
-</div>
-
-<div class="mt-3">
-<label class="text-sm block mb-1">اتجاه الغرز</label>
-<select id="stitchDirection" class="w-full p-2 border rounded">
-  <option value="horizontal">أفقي</option>
-  <option value="vertical">عمودي</option>
-  <option value="diagonal">مائل</option>
-</select>
+<input id="stitchStep" type="number" min="2" max="16" value="4" class="w-full p-2 border rounded"/>
 </div>
 
 <div class="mt-3">
 <label class="text-sm block mb-1">عدد ألوان الخيوط</label>
-<input id="numThreads" type="number" min="2" max="20" value="5" class="w-full p-2 border rounded"/>
+<input id="numThreads" type="number" min="2" max="15" value="5" class="w-full p-2 border rounded"/>
 </div>
 
 <div class="mt-4 flex flex-col gap-2">
@@ -88,11 +79,9 @@ function forceDownload(blob,name){
   setTimeout(()=>URL.revokeObjectURL(url),2000); 
 }
 
-// ألوان خيوط مشهورة
 const threadColors=[
   "rgb(0,0,0)","rgb(255,255,255)","rgb(255,0,0)","rgb(0,255,0)","rgb(0,0,255)",
-  "rgb(255,255,0)","rgb(0,255,255)","rgb(255,0,255)","rgb(128,0,0)","rgb(0,128,0)",
-  "rgb(0,0,128)","rgb(128,128,0)","rgb(128,0,128)","rgb(0,128,128)","rgb(192,192,192)"
+  "rgb(255,255,0)","rgb(0,255,255)","rgb(255,0,255)"
 ];
 
 function buildDST(coords){
@@ -118,69 +107,6 @@ function buildDST(coords){
   return arr;
 }
 
-function makeWorkerFromFunc(fn){ 
-  const src = fn.toString(); 
-  const blob=new Blob(['('+src+')()'],{type:'application/javascript'}); 
-  return new Worker(URL.createObjectURL(blob)); 
-}
-
-const worker=makeWorkerFromFunc(function(){
-  onmessage=async ev=>{
-    const {dataURL, cellSize, stitchStep, exportScale, direction, numThreads, threadColors}=ev.data;
-    try{
-      const imgBlob=await (await fetch(dataURL)).blob();
-      const img=await createImageBitmap(imgBlob);
-      const cell=Math.max(2,Math.min(20,Number(cellSize)||6));
-      const gridW=Math.max(1,Math.floor(img.width/cell));
-      const gridH=Math.max(1,Math.floor(img.height/cell));
-      const w=gridW*cell,h=gridH*cell;
-      const off=new OffscreenCanvas(w,h);
-      const ctx=off.getContext('2d');
-      ctx.drawImage(img,0,0,w,h);
-      const id=ctx.getImageData(0,0,w,h).data;
-
-      const usedColors=threadColors.slice(0,numThreads);
-
-      const stitchPoints=[];
-      const stitchColors=[];
-      for(let gy=0;gy<gridH;gy++){
-        for(let gx=0;gx<gridW;gx++){
-          let rSum=0,gSum=0,bSum=0,cnt=0;
-          for(let yy=gy*cell;yy<(gy+1)*cell;yy++){
-            for(let xx=gx*cell;xx<(gx+1)*cell;xx++){
-              const i=(yy*w+xx)*4;
-              rSum+=id[i]; gSum+=id[i+1]; bSum+=id[i+2]; cnt++;
-            }
-          }
-          const r=Math.round(rSum/cnt), g=Math.round(gSum/cnt), b=Math.round(bSum/cnt);
-
-          // أقرب لون خيط
-          let minDist=Infinity, chosenColor=usedColors[0];
-          for(const c of usedColors){
-            const m=c.match(/\d+/g);
-            const dr=r-m[0], dg=g-m[1], db=b-m[2];
-            const dist=dr*dr+dg*dg+db*db;
-            if(dist<minDist){ minDist=dist; chosenColor=c; }
-          }
-
-          const step=Math.max(1,Number(stitchStep)||2);
-          for(let y=gy*cell;y<gy*cell+cell;y+=step){
-            for(let x=gx*cell;x<gx*cell+cell;x+=step){
-              stitchPoints.push([x,y]);
-              stitchColors.push(chosenColor);
-            }
-          }
-        }
-      }
-
-      if(stitchPoints.length<2) stitchPoints.push([0,0],[10,10]), stitchColors.push(usedColors[0],usedColors[0]);
-      const scale=Number(exportScale)||0.2;
-      const dstCoords=stitchPoints.map(p=>[p[0]*scale,p[1]*scale]);
-      postMessage({dstCoords, merged:dstCoords, colors:stitchColors, w, h});
-    }catch(err){ postMessage({error:err.message||String(err)}); }
-  };
-});
-
 const fileInput=document.getElementById('file');
 const btn=document.getElementById('process');
 const createBtn=document.getElementById('createDST');
@@ -192,51 +118,74 @@ let merged=[], dstFile=null, mergedColors=[];
 btn.addEventListener('click',()=>{
   const f=fileInput.files[0];
   if(!f){ alert('اختر صورة'); return; }
-  const direction=document.getElementById('stitchDirection').value;
-  const numThreads = Number(document.getElementById('numThreads').value||5);
+
+  const cellSize=Number(document.getElementById('cellSize').value||8);
+  const stitchStep=Number(document.getElementById('stitchStep').value||4);
+  const numThreads=Number(document.getElementById('numThreads').value||5);
   const reader=new FileReader();
-  reader.onload=()=>worker.postMessage({
-    dataURL:reader.result,
-    cellSize:Number(document.getElementById('cellSize').value||6),
-    stitchStep:Number(document.getElementById('stitchStep').value||2),
-    exportScale:0.2,
-    direction,
-    numThreads,
-    threadColors
-  });
+  reader.onload=async()=>{
+    const imgBlob=await (await fetch(reader.result)).blob();
+    const img=await createImageBitmap(imgBlob);
+
+    const scaleFactor=Math.min(300/img.width,300/img.height,1); // تصغير الصورة لتسريع
+    const w=Math.floor(img.width*scaleFactor);
+    const h=Math.floor(img.height*scaleFactor);
+    const off=new OffscreenCanvas(w,h);
+    const ctx=off.getContext('2d');
+    ctx.drawImage(img,0,0,w,h);
+    const id=ctx.getImageData(0,0,w,h).data;
+
+    merged=[];
+    mergedColors=[];
+    const step=stitchStep;
+    for(let y=0;y<h;y+=cellSize){
+      for(let x=0;x<w;x+=cellSize){
+        // متوسط اللون للخلية
+        let rSum=0,gSum=0,bSum=0,cnt=0;
+        for(let yy=y;yy<y+cellSize && yy<h;yy++){
+          for(let xx=x;xx<x+cellSize && xx<w;xx++){
+            const i=(yy*w+xx)*4;
+            rSum+=id[i]; gSum+=id[i+1]; bSum+=id[i+2]; cnt++;
+          }
+        }
+        const r=Math.round(rSum/cnt), g=Math.round(gSum/cnt), b=Math.round(bSum/cnt);
+        // أقرب لون خيط
+        let minDist=Infinity, chosen=threadColors[0];
+        for(const c of threadColors.slice(0,numThreads)){
+          const m=c.match(/\d+/g);
+          const dr=r-m[0], dg=g-m[1], db=b-m[2];
+          const dist=dr*dr+dg*dg+db*db;
+          if(dist<minDist){ minDist=dist; chosen=c; }
+        }
+        // إضافة غرزة واحدة لكل خلية (يمكن زيادة الخطوة لاحقاً)
+        merged.push([x+cellSize/2,y+cellSize/2]);
+        mergedColors.push(chosen);
+      }
+    }
+
+    // إنشاء SVG سريع
+    let svg=`<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}' viewBox='0 0 ${w} ${h}'>`;
+    svg+=`<rect width='100%' height='100%' fill='white'></rect>`;
+    for(let i=0;i<merged.length;i++){
+      svg+=`<circle cx='${merged[i][0]}' cy='${merged[i][1]}' r='1' fill='${mergedColors[i]}'/>`;
+    }
+    svg+=`</svg>`;
+    preview.innerHTML=`<object type="image/svg+xml" data="data:image/svg+xml;base64,${btoa(svg)}" style="width:100%;height:100%"></object>`;
+
+    // JSON لكل الغرز
+    const stitchJSON=merged.map((p,i)=>({index:i+1,x:p[0],y:p[1],color:mergedColors[i]}));
+    document.getElementById('stitchData').textContent=JSON.stringify(stitchJSON,null,2);
+
+    log('تم توليد المخطط بسرعة — غرز: '+merged.length);
+    createBtn.disabled=false;
+  };
   reader.readAsDataURL(f);
 });
-
-worker.onmessage=ev=>{
-  if(ev.data.error){ log('خطأ: '+ev.data.error); return; }
-  merged=ev.data.merged;
-  mergedColors=ev.data.colors;
-  log('تم توليد المخطط — عدد الغرز: '+ev.data.dstCoords.length);
-  createBtn.disabled=false;
-
-  let svg=`<svg xmlns='http://www.w3.org/2000/svg' width='${ev.data.w}' height='${ev.data.h}' viewBox='0 0 ${ev.data.w} ${ev.data.h}'>`;
-  svg+=`<rect width='100%' height='100%' fill='white'></rect>`;
-  for(let i=0;i<merged.length;i++){
-    svg+=`<circle cx='${merged[i][0]}' cy='${merged[i][1]}' r='0.7' fill='${mergedColors[i]}'/>`;
-  }
-  svg+=`</svg>`;
-  preview.innerHTML=`<object type="image/svg+xml" data="data:image/svg+xml;base64,${btoa(svg)}" style="width:100%;height:100%"></object>`;
-
-  // إنشاء JSON لكل الغرز
-  const stitchJSON = merged.map((p,i)=>({
-    index: i+1,
-    x: p[0],
-    y: p[1],
-    color: mergedColors[i],
-    direction: document.getElementById('stitchDirection').value
-  }));
-  document.getElementById('stitchData').textContent=JSON.stringify(stitchJSON,null,2);
-};
 
 createBtn.addEventListener('click',()=>{
   if(!merged.length){ alert('لا يوجد تصميم لإنشاء الملف'); return; }
   dstFile=buildDST(merged);
-  log('تم إنشاء ملف DST النهائي مع بيانات كاملة لكل غرزة ولون الخيط');
+  log('تم إنشاء ملف DST النهائي');
   downloadBtn.disabled=false;
 });
 
