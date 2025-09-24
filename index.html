@@ -3,17 +3,34 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>أداة تطريز دقة DST محسّنة</title>
+<title>أداة تطريز دقة DST متقدمة</title>
 <style>
-/* نفس CSS السابق بدون تغيير */
-:root{--bg:#0f172a;--card:#0b1220;--accent:#06b6d4;--muted:#94a3b8;--glass: rgba(255,255,255,0.04);--radius:12px;--glass-2: rgba(255,255,255,0.02);}
-html,body{height:100%;margin:0;font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;direction:rtl;background:linear-gradient(180deg,#071029 0%, #071a2b 100%);color:#e6eef6}
-.app{display:grid;grid-template-columns:320px 1fr;gap:20px;height:100vh;padding:24px}
-.panel{background:linear-gradient(180deg,var(--card),#051022);border-radius:var(--radius);padding:18px;box-shadow:0 6px 30px rgba(0,0,0,0.6);backdrop-filter: blur(6px)}
+:root{
+  --bg:#0f172a;
+  --card:#0b1220;
+  --accent:#06b6d4;
+  --muted:#94a3b8;
+  --glass: rgba(255,255,255,0.04);
+  --radius:12px;
+  --glass-2: rgba(255,255,255,0.02);
+}
+html,body{
+  height:100%;margin:0;font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+  direction:rtl;background:linear-gradient(180deg,#071029 0%, #071a2b 100%);color:#e6eef6
+}
+.app{
+  display:grid;grid-template-columns:320px 1fr;gap:20px;height:100vh;padding:24px
+}
+.panel{
+  background:linear-gradient(180deg,var(--card),#051022);
+  border-radius:var(--radius);padding:18px;
+  box-shadow:0 6px 30px rgba(0,0,0,0.6);
+  backdrop-filter: blur(6px)
+}
 h1{font-size:18px;margin:0 0 8px}
 p.lead{color:var(--muted);font-size:13px;margin:0 0 14px}
 .tool{display:flex;flex-direction:column;gap:12px}
-.row{display:flex;gap:8px;align-items:center}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:var(--glass);border:1px solid rgba(255,255,255,0.03);cursor:pointer;color:var(--accent);font-weight:600}
 .btn.secondary{background:transparent;color:var(--muted);border:1px solid rgba(255,255,255,0.03)}
 .controls{display:flex;gap:8px;align-items:center}
@@ -30,8 +47,8 @@ canvas{background:#f8fafc;border-radius:8px;touch-action:none;max-width:100%;box
 <body>
 <div class="app">
 <aside class="panel">
-<h1>أداة تطريز باللمس - دقة DST محسّنة</h1>
-<p class="lead">ارسم باللمس أو الفأرة. أي شكل يظهر بالضبط في ملف DST.</p>
+<h1>أداة تطريز متقدمة</h1>
+<p class="lead">ارسم باللمس أو الفأرة، أي شكل يظهر بدقة في ملف DST.</p>
 <div class="tool">
 <div class="row">
 <button class="btn" id="newBtn">جديد</button>
@@ -52,11 +69,11 @@ canvas{background:#f8fafc;border-radius:8px;touch-action:none;max-width:100%;box
 <button class="btn" id="saveJson">حفظ كقالب (JSON)</button>
 </div>
 <div class="row">
-<button class="btn" id="exportSvg">تصدير كـ SVG</button>
-<button class="btn" id="exportPng">تصدير كـ PNG</button>
+<button class="btn" id="exportSvg">تصدير SVG</button>
+<button class="btn" id="exportPng">تصدير PNG</button>
 </div>
 <div class="row">
-<button class="btn" id="exportDst">تصدير كـ DST</button>
+<button class="btn" id="exportDst">تصدير DST</button>
 </div>
 </div>
 </aside>
@@ -82,49 +99,108 @@ const sizeInput=document.getElementById('size'),sizeVal=document.getElementById(
 const palette=['#0f172a','#06b6d4','#ef4444','#f59e0b','#10b981','#7c3aed','#f97316','#111827'];
 let currentColor=palette[1];
 const colorsEl=document.getElementById('colors');
-palette.forEach(c=>{const b=document.createElement('div');b.className='color-swatch';b.style.background=c;b.addEventListener('click',()=>{currentColor=c;colorsEl.querySelectorAll('.color-swatch').forEach(s=>s.style.border='1px solid rgba(255,255,255,0.06)');b.style.border='2px solid #06b6d4';});colorsEl.appendChild(b);});
+
+// إنشاء لوحة الألوان
+palette.forEach(c=>{
+  const b=document.createElement('div');
+  b.className='color-swatch';
+  b.style.background=c;
+  b.addEventListener('click',()=>{currentColor=c;colorsEl.querySelectorAll('.color-swatch').forEach(s=>s.style.border='1px solid rgba(255,255,255,0.06)');b.style.border='2px solid #06b6d4';});
+  colorsEl.appendChild(b);
+});
+
+// التحكم بحجم الإبرة
 sizeInput.addEventListener('input',()=>{sizeVal.textContent=sizeInput.value;});
 
-function getPointer(e){const r=canvas.getBoundingClientRect();const p=e.touches?e.touches[0]:e;return {x:Math.max(0,Math.min(r.width,p.clientX-r.left)),y:Math.max(0,Math.min(r.height,p.clientY-r.top))};}
+// الحصول على إحداثيات المؤشر
+function getPointer(e){
+  const r=canvas.getBoundingClientRect();
+  const p=e.touches?e.touches[0]:e;
+  return {x:Math.max(0,Math.min(r.width,p.clientX-r.left)),y:Math.max(0,Math.min(r.height,p.clientY-r.top))};
+}
 
+// البداية والتحريك والنهاية
 function begin(x,y){drawing=true;current={color:currentColor,size:parseInt(sizeInput.value,10),points:[{x,y}]};strokes.push(current);updateInfo();}
 function move(x,y){if(!drawing||!current)return;current.points.push({x,y});drawSegment(current);}
 function end(){drawing=false;current=null;updateInfo();}
 
-function drawSegment(s){const p=s.points,n=p.length;if(n<2)return;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle=s.color;ctx.lineWidth=s.size;ctx.beginPath();ctx.moveTo(p[n-2].x,p[n-2].y);ctx.lineTo(p[n-1].x,p[n-1].y);ctx.stroke();}
-function drawFull(s){if(s.points.length<2)return;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle=s.color;ctx.lineWidth=s.size;ctx.beginPath();ctx.moveTo(s.points[0].x,s.points[0].y);for(let i=1;i<s.points.length;i++)ctx.lineTo(s.points[i].x,s.points[i].y);ctx.stroke();}
+// رسم جزء من المسار
+function drawSegment(s){
+  const p=s.points,n=p.length;if(n<2)return;
+  ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle=s.color;ctx.lineWidth=s.size;
+  ctx.beginPath();ctx.moveTo(p[n-2].x,p[n-2].y);
+  ctx.lineTo(p[n-1].x,p[n-1].y);ctx.stroke();
+}
+
+// رسم كامل المسار
+function drawFull(s){
+  if(s.points.length<2)return;
+  ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle=s.color;ctx.lineWidth=s.size;
+  ctx.beginPath();ctx.moveTo(s.points[0].x,s.points[0].y);
+  for(let i=1;i<s.points.length;i++)ctx.lineTo(s.points[i].x,s.points[i].y);
+  ctx.stroke();
+}
+
+// إعادة الرسم بالكامل
 function redraw(){ctx.clearRect(0,0,canvas.width,canvas.height);strokes.forEach(drawFull);}
 function updateInfo(){document.getElementById('info').textContent=`المسارات: ${strokes.length}`;}
 
+// أحداث الفأرة/اللمس
 canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);const p=getPointer(e);begin(p.x,p.y);});
 canvas.addEventListener('pointermove',e=>{if(!drawing)return;const p=getPointer(e);move(p.x,p.y);});
 canvas.addEventListener('pointerup',e=>{canvas.releasePointerCapture(e.pointerId);end();});
 canvas.addEventListener('pointercancel',end);
 
+// أزرار التحكم
 document.getElementById('undoBtn').addEventListener('click',()=>{if(strokes.length){strokes.pop();redraw();updateInfo();}});
 document.getElementById('newBtn').addEventListener('click',()=>{if(confirm('مسح الرسم الحالي؟')){strokes=[];redraw();updateInfo();}});
 
+// الحفظ والتصدير
 document.getElementById('saveJson').addEventListener('click',()=>{downloadData(JSON.stringify({strokes},null,2),'embroidery-template.json','application/json');});
 document.getElementById('exportSvg').addEventListener('click',()=>{downloadData(strokesToSVG(),'embroidery.svg','image/svg+xml');});
 document.getElementById('exportPng').addEventListener('click',()=>{exportPNG();});
 document.getElementById('exportDst').addEventListener('click',()=>{downloadData(strokesToDST(strokes,canvas.width,canvas.height),'embroidery.dst','application/octet-stream');});
 
-function exportPNG(){const tmp=document.createElement('canvas');tmp.width=canvas.width;tmp.height=canvas.height;const tctx=tmp.getContext('2d');tctx.fillStyle='#ffffff';tctx.fillRect(0,0,tmp.width,tmp.height);strokes.forEach(s=>{if(s.points.length<2)return;tctx.lineCap='round';tctx.lineJoin='round';tctx.strokeStyle=s.color;tctx.lineWidth=s.size;tctx.beginPath();tctx.moveTo(s.points[0].x,s.points[0].y);for(let i=1;i<s.points.length;i++)tctx.lineTo(s.points[i].x,s.points[i].y);tctx.stroke();});tmp.toBlob(b=>downloadBlob(b,'embroidery.png'));}
+// ======= تحسين PNG =======
+function exportPNG(){
+  const tmp=document.createElement('canvas');tmp.width=canvas.width;tmp.height=canvas.height;
+  const tctx=tmp.getContext('2d');tctx.fillStyle='#ffffff';tctx.fillRect(0,0,tmp.width,tmp.height);
+  strokes.forEach(drawFull=>{drawFull(drawFull)});
+  tmp.toBlob(b=>downloadBlob(b,'embroidery.png'));
+}
 
-function strokesToSVG(){let svg=`<?xml version="1.0"?><svg xmlns='http://www.w3.org/2000/svg' width='${canvas.width}' height='${canvas.height}' viewBox='0 0 ${canvas.width} ${canvas.height}'>`;svg+=`<rect width='100%' height='100%' fill='white'/>`;strokes.forEach(s=>{if(s.points.length<2)return;const d=s.points.map((p,i)=>i===0?`M ${p.x} ${p.y}`:`L ${p.x} ${p.y}`).join(' ');svg+=`<path d='${d}' stroke='${s.color}' stroke-width='${s.size}' fill='none' stroke-linecap='round' stroke-linejoin='round'/>`;});svg+='</svg>';return svg;}
+// ======= تحويل إلى SVG =======
+function strokesToSVG(){
+  let svg=`<?xml version="1.0"?><svg xmlns='http://www.w3.org/2000/svg' width='${canvas.width}' height='${canvas.height}' viewBox='0 0 ${canvas.width} ${canvas.height}'>`;
+  svg+=`<rect width='100%' height='100%' fill='white'/>`;
+  strokes.forEach(s=>{
+    if(s.points.length<2)return;
+    const d=s.points.map((p,i)=>i===0?`M ${p.x} ${p.y}`:`L ${p.x} ${p.y}`).join(' ');
+    svg+=`<path d='${d}' stroke='${s.color}' stroke-width='${s.size}' fill='none' stroke-linecap='round' stroke-linejoin='round'/>`;
+  });
+  svg+='</svg>';
+  return svg;
+}
 
-// ================== تحسين المسارات للـ DST ==================
-function smoothPoints(points){
-  if(points.length<3)return points;
-  const result=[points[0]];
-  for(let i=1;i<points.length-1;i++){
-    const prev=points[i-1], curr=points[i], next=points[i+1];
-    const x=(prev.x+curr.x+next.x)/3;
-    const y=(prev.y+curr.y+next.y)/3;
-    result.push({x,y});
+// ======= تحسين DST =======
+function catmullRomSpline(points, numPoints = 10){
+  if(points.length<2)return points;
+  const newPts=[];
+  for(let i=0;i<points.length-1;i++){
+    const p0 = points[i-1]||points[i];
+    const p1 = points[i];
+    const p2 = points[i+1];
+    const p3 = points[i+2]||p2;
+    for(let t=0;t<numPoints;t++){
+      const tt=t/numPoints;
+      const tt2=tt*tt; const tt3=tt2*tt;
+      const x = 0.5*((2*p1.x)+(-p0.x+p2.x)*tt+(2*p0.x-5*p1.x+4*p2.x-p3.x)*tt2+(-p0.x+3*p1.x-3*p2.x+p3.x)*tt3);
+      const y = 0.5*((2*p1.y)+(-p0.y+p2.y)*tt+(2*p0.y-5*p1.y+4*p2.y-p3.y)*tt2+(-p0.y+3*p1.y-3*p2.y+p3.y)*tt3);
+      newPts.push({x,y});
+    }
   }
-  result.push(points[points.length-1]);
-  return result;
+  newPts.push(points[points.length-1]);
+  return newPts;
 }
 
 function strokesToDST(strokes,width,height){
@@ -133,12 +209,10 @@ function strokesToDST(strokes,width,height){
   let lastX=0,lastY=0;
   const scale=1;
   for(let s of strokes){
-    const pts=smoothPoints(s.points);
-    for(let i=0;i<pts.length;i++){
-      const p=pts[i];
+    const pts=catmullRomSpline(s.points,5);
+    for(let p of pts){
       let x=Math.round(p.x*scale), y=Math.round(p.y*scale);
       let dx=x-lastX, dy=-(y-lastY);
-      // تقسيم الغرز الطويلة
       while(Math.abs(dx)>121||Math.abs(dy)>121){
         const stepX=Math.max(-121,Math.min(121,dx));
         const stepY=Math.max(-121,Math.min(121,dy));
@@ -150,12 +224,23 @@ function strokesToDST(strokes,width,height){
     }
   }
   body.push(0x1A,0,0);
-  const result=new Uint8Array(header.length+body.length);result.set(header,0);result.set(body,header.length);
+  const result=new Uint8Array(header.length+body.length);
+  result.set(header,0);
+  result.set(body,header.length);
   return result.buffer;
 }
 
-function downloadData(data,name,type){const blob=new Blob([data],{type});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();}
-function downloadBlob(b,name){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();a.remove();}
+// ======= تحميل البيانات =======
+function downloadData(data,name,type){
+  const blob=new Blob([data],{type});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+function downloadBlob(b,name){downloadData(b,name,'application/octet-stream');}
 </script>
 </body>
 </html>
