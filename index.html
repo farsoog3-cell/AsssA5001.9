@@ -1,184 +1,241 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<!doctype html>
+<html lang="ar">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Molfa — تحويل صورة إلى تطريز DST</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<style>
-body{font-family:Inter,system-ui,Arial; background:#f3f4f6; color:#111;}
-.mono{font-family:ui-monospace,monospace;}
-.svg-wrap{width:100%;height:100%;display:flex;align-items:center;justify-content:center; border:1px solid #ccc; background:white;}
-button{cursor:pointer;}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>أداة رسم تطريز — تصميم وحفظ وتصدير</title>
+  <style>
+    :root{
+      --bg:#0f172a; --card:#0b1220; --accent:#06b6d4; --muted:#94a3b8; --glass: rgba(255,255,255,0.04);
+      --radius:12px; --glass-2: rgba(255,255,255,0.02);
+    }
+    html,body{height:100%;margin:0;font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;direction:rtl;background:linear-gradient(180deg,#071029 0%, #071a2b 100%);color:#e6eef6}
+    .app{display:grid;grid-template-columns:320px 1fr;gap:20px;height:100vh;padding:24px}
+    .panel{background:linear-gradient(180deg,var(--card),#051022);border-radius:var(--radius);padding:18px;box-shadow:0 6px 30px rgba(0,0,0,0.6);backdrop-filter: blur(6px)}
+    h1{font-size:18px;margin:0 0 8px}
+    p.lead{color:var(--muted);font-size:13px;margin:0 0 14px}
+
+    .tool{display:flex;flex-direction:column;gap:12px}
+    .row{display:flex;gap:8px;align-items:center}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:var(--glass);border:1px solid rgba(255,255,255,0.03);cursor:pointer;color:var(--accent);font-weight:600}
+    .btn.secondary{background:transparent;color:var(--muted);border:1px solid rgba(255,255,255,0.03)}
+    .btn svg{width:18px;height:18px;opacity:0.95}
+    .controls{display:flex;gap:8px;align-items:center}
+    .color-swatch{width:30px;height:30px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);cursor:pointer}
+    input[type=range]{width:120px}
+
+    .stage{display:flex;flex-direction:column;gap:8px}
+    .canvas-wrap{flex:1;background:var(--glass-2);border-radius:12px;padding:12px;display:flex;flex-direction:column}
+    .canvas-card{flex:1;display:flex;justify-content:center;align-items:center;position:relative}
+    canvas{background:#f8fafc;border-radius:8px;touch-action:none;max-width:100%;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.05)}
+    .footer{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:13px;margin-top:6px}
+
+    @media (max-width:880px){.app{grid-template-columns:1fr;overflow:auto;padding:12px}.panel{order:2}}
+  </style>
 </head>
-<body class="min-h-screen flex flex-col">
+<body>
+  <div class="app">
+    <aside class="panel">
+      <h1>أداة تطريز باللمس</h1>
+      <p class="lead">ارسم بتقنية المس/اللمس أو الفأرة. احفظ القالب أو صدّر إلى SVG/PNG/DST.
+      </p>
 
-<header class="bg-indigo-700 text-white py-4 shadow text-center">
-<h1 class="text-xl font-semibold">Molfa — تحويل صورة إلى تطريز DST</h1>
-<p>اختر صورة، شاهد المخطط المطرز، وحمّل ملف DST النهائي</p>
-</header>
+      <div class="tool">
+        <div class="row">
+          <button class="btn" id="newBtn">جديد</button>
+          <button class="btn secondary" id="undoBtn">تراجع</button>
+        </div>
 
-<main class="container mx-auto p-4 md:p-6 flex-grow">
-<div class="bg-white rounded-xl shadow p-4 md:p-6">
-<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="row">
+          <div class="controls">
+            <label style="color:var(--muted);font-size:13px">حجم الإبرة</label>
+            <input type="range" id="size" min="1" max="40" value="3" />
+            <span id="sizeVal" style="width:34px;text-align:center;color:var(--muted)">3</span>
+          </div>
+        </div>
 
-<div>
-<label class="block font-medium">اختر صورة</label>
-<input id="file" type="file" accept="image/*" class="w-full p-2 border rounded mt-1"/>
+        <div class="row">
+          <label style="color:var(--muted);font-size:13px;margin-bottom:6px">ألوان الخيط</label>
+        </div>
+        <div class="row" id="colors"></div>
 
-<div class="mt-3">
-<label class="text-sm block mb-1">حجم الخلية (px)</label>
-<input id="cellSize" type="number" min="2" max="20" value="6" class="w-full p-2 border rounded"/>
-</div>
+        <div class="row">
+          <button class="btn" id="saveJson">حفظ كقالب (JSON)</button>
+        </div>
+        <div class="row">
+          <button class="btn" id="exportSvg">تصدير كـ SVG</button>
+          <button class="btn" id="exportPng">تصدير كـ PNG</button>
+        </div>
+        <div class="row">
+          <button class="btn" id="exportDst">تصدير كـ DST</button>
+        </div>
+      </div>
+    </aside>
 
-<div class="mt-3">
-<label class="text-sm block mb-1">طول الغرزة (px)</label>
-<input id="stitchStep" type="number" min="1" max="16" value="3" class="w-full p-2 border rounded"/>
-</div>
+    <main class="stage panel">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong>لوحة الرسم</strong>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label style="color:var(--muted);font-size:13px">تبديل الشبكة</label>
+          <input type="checkbox" id="gridToggle" />
+        </div>
+      </div>
 
-<div class="mt-3">
-<label class="text-sm block mb-1">عدد ألوان الخيوط</label>
-<input id="numThreads" type="number" min="2" max="10" value="5" class="w-full p-2 border rounded"/>
-</div>
+      <div class="canvas-wrap">
+        <div class="canvas-card">
+          <canvas id="draw" width="1200" height="800"></canvas>
+          <svg id="gridSVG" style="position:absolute;inset:12px;pointer-events:none;display:none" width="100%" height="100%" viewBox="0 0 1200 800" preserveAspectRatio="none"></svg>
+        </div>
+        <div class="footer">
+          <div id="info">الخطوط: 0 — عناصر محفوظة</div>
+          <div>تنسيقات: SVG / PNG / DST / JSON</div>
+        </div>
+      </div>
+    </main>
+  </div>
 
-<div class="mt-4 flex flex-col gap-2">
-<button id="process" class="bg-indigo-600 text-white py-2 rounded">🔧 توليد تطريز</button>
-<button id="downloadDST" class="bg-green-600 text-white py-2 rounded" disabled>⬇️ تنزيل DST</button>
-</div>
+  <script>
+    const canvas = document.getElementById('draw');
+    const ctx = canvas.getContext('2d');
+    const rect = () => canvas.getBoundingClientRect();
+    let drawing = false;
+    let strokes = [];
+    let current = null;
 
-<div class="mt-3">
-<h2 class="font-semibold">معاينة بيانات الغرز (JSON)</h2>
-<pre id="stitchData" class="mono text-xs h-40 overflow-auto whitespace-pre-wrap bg-gray-100 p-2 rounded border mt-2"></pre>
-</div>
-
-</div>
-
-<div class="md:col-span-2">
-<div class="bg-gray-50 p-3 rounded min-h-[380px] flex items-center justify-center">
-<div id="svgPreview" class="svg-wrap text-gray-500">لم يتم التوليد بعد</div>
-</div>
-<pre id="log" class="mono text-xs h-40 overflow-auto whitespace-pre-wrap bg-white p-2 rounded border mt-3"></pre>
-</div>
-
-</div>
-</div>
-</main>
-
-<script>
-function log(msg){
-  const el=document.getElementById('log');
-  el.textContent += '['+new Date().toLocaleTimeString()+'] '+msg+"\n";
-  el.scrollTop = el.scrollHeight;
-}
-function forceDownload(blob,name){
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url; a.download=name;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),2000);
-}
-
-// ألوان خيوط
-const threadColors=["rgb(0,0,0)","rgb(255,0,0)","rgb(0,255,0)","rgb(0,0,255)","rgb(255,255,0)","rgb(255,0,255)","rgb(0,255,255)"];
-
-function buildDST(coords){
-  const header=new Uint8Array(512);
-  const body=[];
-  let prevx=0,prevy=0;
-  coords.forEach(p=>{
-    let x=Math.round(p[0]),y=Math.round(p[1]);
-    let dx=x-prevx,dy=y-prevy;
-    while(Math.abs(dx)>121||Math.abs(dy)>121){
-      const sx=Math.max(-121,Math.min(121,dx));
-      const sy=Math.max(-121,Math.min(121,dy));
-      body.push(sx&0xFF,sy&0xFF,0x01);
-      dx-=sx; dy-=sy; prevx+=sx; prevy+=sy;
+    function resizeCanvas(){
+      const r = rect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.style.width = r.width + 'px';
+      canvas.style.height = r.height + 'px';
+      canvas.width = Math.round(r.width * dpr);
+      canvas.height = Math.round(r.height * dpr);
+      ctx.scale(dpr, dpr);
+      redraw();
     }
-    body.push(dx&0xFF,dy&0xFF,0x03);
-    prevx=x; prevy=y;
-  });
-  body.push(0x00,0x00,0xF3);
-  const arr=new Uint8Array(512+body.length);
-  arr.set(header,0);
-  arr.set(new Uint8Array(body),512);
-  return arr;
-}
+    window.addEventListener('resize', resizeCanvas);
+    setTimeout(resizeCanvas, 50);
 
-const fileInput=document.getElementById('file');
-const btn=document.getElementById('process');
-const downloadBtn=document.getElementById('downloadDST');
-const preview=document.getElementById('svgPreview');
+    const sizeInput = document.getElementById('size');
+    const sizeVal = document.getElementById('sizeVal');
+    sizeInput.addEventListener('input', ()=>{sizeVal.textContent = sizeInput.value});
 
-let merged=[], mergedColors=[], dstFile=null;
+    const palette = ['#0f172a','#06b6d4','#ef4444','#f59e0b','#10b981','#7c3aed','#f97316','#111827'];
+    const colorsEl = document.getElementById('colors');
+    let currentColor = palette[1];
+    palette.forEach(c=>{
+      const b = document.createElement('div');b.className='color-swatch';b.style.background=c;
+      b.addEventListener('click',()=>{currentColor=c;});
+      colorsEl.appendChild(b);
+    });
 
-btn.addEventListener('click',()=>{
-  const f=fileInput.files[0];
-  if(!f){ alert('اختر صورة'); return; }
+    function getPointer(ev){
+      const r = rect();
+      const p = ev.touches ? ev.touches[0] : ev;
+      return {x: Math.max(0, Math.min(r.width, p.clientX - r.left)), y: Math.max(0, Math.min(r.height, p.clientY - r.top))};
+    }
 
-  const cellSize=Number(document.getElementById('cellSize').value||6);
-  const stitchStep=Number(document.getElementById('stitchStep').value||3);
-  const numThreads=Number(document.getElementById('numThreads').value||5);
-  const reader=new FileReader();
-  reader.onload=async()=>{
-    const imgBlob=await (await fetch(reader.result)).blob();
-    const img=await createImageBitmap(imgBlob);
+    function begin(x,y){
+      drawing = true;
+      current = {color:currentColor, size:parseInt(sizeInput.value,10), points:[{x,y}]};
+      strokes.push(current);
+      updateInfo();
+    }
+    function move(x,y){
+      if(!drawing || !current) return;
+      current.points.push({x,y});
+      drawStrokeSegment(current);
+    }
+    function end(){drawing = false; current = null; updateInfo();}
 
-    const scale=Math.min(300/img.width,300/img.height,1);
-    const w=Math.floor(img.width*scale), h=Math.floor(img.height*scale);
-    const off=new OffscreenCanvas(w,h);
-    const ctx=off.getContext('2d');
-    ctx.drawImage(img,0,0,w,h);
-    const id=ctx.getImageData(0,0,w,h).data;
+    function clearCanvas(){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      const r = rect();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0,0,r.width,r.height);
+    }
+    function redraw(){clearCanvas(); strokes.forEach(s=> drawFullStroke(s));}
+    function drawFullStroke(s){
+      if(s.points.length<2) return;
+      ctx.lineCap='round'; ctx.lineJoin='round';
+      ctx.strokeStyle=s.color; ctx.lineWidth=s.size;
+      ctx.beginPath();
+      ctx.moveTo(s.points[0].x, s.points[0].y);
+      for(let i=1;i<s.points.length;i++) ctx.lineTo(s.points[i].x, s.points[i].y);
+      ctx.stroke();
+    }
+    function drawStrokeSegment(s){
+      const p=s.points; const n=p.length;
+      if(n<2) return;
+      ctx.lineCap='round'; ctx.lineJoin='round';
+      ctx.strokeStyle=s.color; ctx.lineWidth=s.size;
+      ctx.beginPath(); ctx.moveTo(p[n-2].x,p[n-2].y); ctx.lineTo(p[n-1].x,p[n-1].y); ctx.stroke();
+    }
 
-    merged=[]; mergedColors=[];
-    for(let y=0;y<h;y+=cellSize){
-      for(let x=0;x<w;x+=cellSize){
-        let rSum=0,gSum=0,bSum=0,cnt=0;
-        for(let yy=y;yy<y+cellSize && yy<h;yy++){
-          for(let xx=x;xx<x+cellSize && xx<w;xx++){
-            const i=(yy*w+xx)*4;
-            rSum+=id[i]; gSum+=id[i+1]; bSum+=id[i+2]; cnt++;
-          }
+    canvas.addEventListener('pointerdown', e=>{canvas.setPointerCapture(e.pointerId); const p=getPointer(e); begin(p.x,p.y);});
+    canvas.addEventListener('pointermove', e=>{if(!drawing) return; const p=getPointer(e); move(p.x,p.y);});
+    canvas.addEventListener('pointerup', e=>{canvas.releasePointerCapture(e.pointerId); end();});
+    canvas.addEventListener('pointercancel', end);
+
+    document.getElementById('undoBtn').addEventListener('click', ()=>{ if(strokes.length){strokes.pop(); redraw(); updateInfo();} });
+    document.getElementById('newBtn').addEventListener('click', ()=>{ if(confirm('مسح الرسم الحالي؟')){strokes=[]; redraw(); updateInfo();}});
+
+    document.getElementById('saveJson').addEventListener('click', ()=>{
+      const data = JSON.stringify({strokes}, null, 2);
+      downloadData(data, 'embroidery-template.json', 'application/json');
+    });
+    document.getElementById('exportSvg').addEventListener('click', ()=>{
+      const svg = strokesToSVG();
+      downloadData(svg, 'embroidery.svg', 'image/svg+xml');
+    });
+    document.getElementById('exportPng').addEventListener('click', ()=>{
+      const svg = strokesToSVG(); const img = new Image();
+      const svgBlob=new Blob([svg],{type:'image/svg+xml;charset=utf-8'});
+      const url=URL.createObjectURL(svgBlob);
+      img.onload=()=>{const tmp=document.createElement('canvas');tmp.width=canvas.width;tmp.height=canvas.height;const tctx=tmp.getContext('2d');tctx.fillStyle='#ffffff';tctx.fillRect(0,0,tmp.width,tmp.height);tctx.drawImage(img,0,0,tmp.width,tmp.height);tmp.toBlob(b=>{downloadBlob(b,'embroidery.png');URL.revokeObjectURL(url);});};
+      img.src=url;
+    });
+
+    // Export DST (simplified)
+    document.getElementById('exportDst').addEventListener('click', ()=>{
+      const dst = strokesToDST(strokes);
+      downloadData(dst, 'embroidery.dst', 'application/octet-stream');
+    });
+
+    function strokesToDST(strokes){
+      let header = new Uint8Array(512); // empty header
+      let body = [];
+      for(let s of strokes){
+        for(let p of s.points){
+          let dx = Math.round(p.x); let dy = -Math.round(p.y);
+          body.push(dx & 0xFF, dy & 0xFF, 0);
         }
-        const r=Math.round(rSum/cnt), g=Math.round(gSum/cnt), b=Math.round(bSum/cnt);
-        let minDist=Infinity, chosen=threadColors[0];
-        for(const c of threadColors.slice(0,numThreads)){
-          const m=c.match(/\d+/g);
-          const dr=r-m[0], dg=g-m[1], db=b-m[2];
-          const dist=dr*dr+dg*dg+db*db;
-          if(dist<minDist){ minDist=dist; chosen=c; }
-        }
-        merged.push([x+cellSize/2,y+cellSize/2]);
-        mergedColors.push(chosen);
       }
+      body.push(0x1A,0,0); // End command
+      let result = new Uint8Array(header.length+body.length);
+      result.set(header,0); result.set(body,header.length);
+      return result.buffer;
     }
 
-    // SVG المعاينة
-    let svg=`<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}' viewBox='0 0 ${w} ${h}'>`;
-    svg+=`<rect width='100%' height='100%' fill='white'></rect>`;
-    for(let i=0;i<merged.length;i++){
-      svg+=`<circle cx='${merged[i][0]}' cy='${merged[i][1]}' r='1' fill='${mergedColors[i]}'/>`;
+    function strokesToSVG(){
+      const w = rect().width, h = rect().height;
+      let svg = `<?xml version="1.0"?><svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}' viewBox='0 0 ${w} ${h}'>`;
+      svg+=`<rect width='100%' height='100%' fill='white'/>`;
+      strokes.forEach(s=>{
+        if(s.points.length<2) return;
+        const d=s.points.map((p,i)=>i===0?`M ${p.x} ${p.y}`:`L ${p.x} ${p.y}`).join(' ');
+        svg+=`<path d='${d}' stroke='${s.color}' stroke-width='${s.size}' fill='none' stroke-linecap='round' stroke-linejoin='round'/>`;
+      });
+      svg+='</svg>'; return svg;
     }
-    svg+=`</svg>`;
-    preview.innerHTML=`<object type="image/svg+xml" data="data:image/svg+xml;base64,${btoa(svg)}" style="width:100%;height:100%"></object>`;
 
-    const stitchJSON=merged.map((p,i)=>({index:i+1,x:p[0],y:p[1],color:mergedColors[i]}));
-    document.getElementById('stitchData').textContent=JSON.stringify(stitchJSON,null,2);
+    function downloadData(data, filename, type){
+      const blob = (data instanceof ArrayBuffer) ? new Blob([data],{type}) : new Blob([data],{type});
+      const url = URL.createObjectURL(blob);
+      const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+    }
+    function downloadBlob(b,name){const url=URL.createObjectURL(b);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);}
 
-    log('تم تحويل الصورة إلى تطريز — غرز: '+merged.length);
-    dstFile=buildDST(merged);
-    downloadBtn.disabled=false;
-  };
-  reader.readAsDataURL(f);
-});
-
-downloadBtn.addEventListener('click',()=>{
-  if(!dstFile){ alert('لا يوجد ملف للتنزيل'); return; }
-  forceDownload(new Blob([dstFile],{type:'application/octet-stream'}),'molfa_output.dst');
-  log('تم تنزيل الملف النهائي');
-});
-</script>
-
+    function updateInfo(){document.getElementById('info').textContent=`المسارات: ${strokes.length}`;}
+  </script>
 </body>
 </html>
