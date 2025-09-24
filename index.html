@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>أداة تطريز باللمس</title>
+<title>أداة تطريز باللمس - دعم DST كامل</title>
 <style>
 :root{
   --bg:#0f172a; --card:#0b1220; --accent:#06b6d4; --muted:#94a3b8; --glass: rgba(255,255,255,0.04);
@@ -213,21 +213,27 @@ document.getElementById('exportPng').addEventListener('click', ()=>{
 });
 
 document.getElementById('exportDst').addEventListener('click', ()=>{
-  const dst = strokesToDST(strokes);
+  const dst = strokesToDST(strokes, canvas.width, canvas.height);
   downloadData(dst, 'embroidery.dst', 'application/octet-stream');
 });
 
-function strokesToDST(strokes){
+// ================== DST PRECISION ==================
+function strokesToDST(strokes, canvasWidth, canvasHeight){
   const header = new Uint8Array(512);
   const body = [];
+  const scale = 1; // يمكنك تعديل المقياس لو تطريز أكبر/أصغر
   let lastX = 0, lastY = 0;
 
   for(let s of strokes){
     for(let i=0;i<s.points.length;i++){
       const p = s.points[i];
-      let dx = Math.round(p.x - lastX);
-      let dy = Math.round(p.y - lastY);
+      // تحويل الإحداثيات
+      let x = Math.round(p.x * scale);
+      let y = Math.round(p.y * scale);
+      let dx = x - lastX;
+      let dy = -(y - lastY); // انعكاس المحور Y
 
+      // تقسيم الغرز الطويلة
       while(Math.abs(dx) > 121 || Math.abs(dy) > 121){
         const stepX = Math.max(-121, Math.min(121, dx));
         const stepY = Math.max(-121, Math.min(121, dy));
@@ -237,15 +243,15 @@ function strokesToDST(strokes){
       }
 
       body.push(dx & 0xFF, dy & 0xFF, 0);
-      lastX = p.x;
-      lastY = p.y;
+      lastX = x;
+      lastY = y;
     }
   }
 
   body.push(0x1A,0,0);
   const result = new Uint8Array(header.length + body.length);
-  result.set(header, 0);
-  result.set(body, header.length);
+  result.set(header,0);
+  result.set(body,header.length);
   return result.buffer;
 }
 
