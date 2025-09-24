@@ -235,6 +235,7 @@ function strokesToDST(strokes){
         dx -= stepX;
         dy -= stepY;
       }
+
       body.push(dx & 0xFF, dy & 0xFF, 0);
       lastX = p.x;
       lastY = p.y;
