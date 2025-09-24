@@ -1,162 +1,247 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>أداة رسم تطريز</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>أداة تطريز باللمس</title>
   <style>
-    body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; background: #f0f0f0; }
-    canvas { border: 1px solid #444; background: #fff; border-radius: 12px; margin: 10px; }
-    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px; }
-    .btn { padding: 8px 12px; border: none; border-radius: 8px; cursor: pointer; background: #4a90e2; color: #fff; }
-    .btn:hover { background: #357abd; }
-    .slider-container { display: flex; align-items: center; gap: 5px; }
+    :root{
+      --bg:#0f172a; --card:#0b1220; --accent:#06b6d4; --muted:#94a3b8; --glass: rgba(255,255,255,0.04);
+      --radius:12px; --glass-2: rgba(255,255,255,0.02);
+    }
+    html,body{height:100%;margin:0;font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;direction:rtl;background:linear-gradient(180deg,#071029 0%, #071a2b 100%);color:#e6eef6}
+    .app{display:grid;grid-template-columns:320px 1fr;gap:20px;height:100vh;padding:24px}
+    .panel{background:linear-gradient(180deg,var(--card),#051022);border-radius:var(--radius);padding:18px;box-shadow:0 6px 30px rgba(0,0,0,0.6);backdrop-filter: blur(6px)}
+    h1{font-size:18px;margin:0 0 8px}
+    p.lead{color:var(--muted);font-size:13px;margin:0 0 14px}
+
+    .tool{display:flex;flex-direction:column;gap:12px}
+    .row{display:flex;gap:8px;align-items:center}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:var(--glass);border:1px solid rgba(255,255,255,0.03);cursor:pointer;color:var(--accent);font-weight:600}
+    .btn.secondary{background:transparent;color:var(--muted);border:1px solid rgba(255,255,255,0.03)}
+    .btn svg{width:18px;height:18px;opacity:0.95}
+    .controls{display:flex;gap:8px;align-items:center}
+    .color-swatch{width:30px;height:30px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);cursor:pointer}
+    input[type=range]{width:120px}
+
+    .stage{display:flex;flex-direction:column;gap:8px}
+    .canvas-wrap{flex:1;background:var(--glass-2);border-radius:12px;padding:12px;display:flex;flex-direction:column}
+    .canvas-card{flex:1;display:flex;justify-content:center;align-items:center;position:relative}
+    canvas{background:#f8fafc;border-radius:8px;touch-action:none;max-width:100%;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.05)}
+    .footer{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:13px;margin-top:6px}
+
+    @media (max-width:880px){.app{grid-template-columns:1fr;overflow:auto;padding:12px}.panel{order:2}}
   </style>
 </head>
 <body>
-  <h2>✦ أداة رسم التطريز ✦</h2>
-  <div class="toolbar">
-    <button class="btn" id="clear">جديد</button>
-    <button class="btn" id="undo">تراجع</button>
-    <button class="btn" id="exportDst">تصدير كـ DST</button>
-    <div class="slider-container">
-      <label for="stitchLen">طول الغرزة:</label>
-      <input type="range" id="stitchLen" min="0.5" max="10" step="0.5" value="2">
-      <span id="stitchValue">2</span> px
-    </div>
+  <div class="app">
+    <aside class="panel">
+      <h1>أداة تطريز باللمس</h1>
+      <p class="lead">ارسم بتقنية المس/اللمس أو الفأرة. احفظ القالب أو صدّر إلى SVG/PNG/DST.
+      </p>
+
+      <div class="tool">
+        <div class="row">
+          <button class="btn" id="newBtn">جديد</button>
+          <button class="btn secondary" id="undoBtn">تراجع</button>
+        </div>
+
+        <div class="row">
+          <div class="controls">
+            <label style="color:var(--muted);font-size:13px">حجم الإبرة</label>
+            <input type="range" id="size" min="1" max="40" value="3" />
+            <span id="sizeVal" style="width:34px;text-align:center;color:var(--muted)">3</span>
+          </div>
+        </div>
+
+        <div class="row">
+          <label style="color:var(--muted);font-size:13px;margin-bottom:6px">ألوان الخيط</label>
+        </div>
+        <div class="row" id="colors"></div>
+
+        <div class="row">
+          <button class="btn" id="saveJson">حفظ كقالب (JSON)</button>
+        </div>
+        <div class="row">
+          <button class="btn" id="exportSvg">تصدير كـ SVG</button>
+          <button class="btn" id="exportPng">تصدير كـ PNG</button>
+        </div>
+        <div class="row">
+          <button class="btn" id="exportDst">تصدير كـ DST</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="stage panel">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong>لوحة الرسم</strong>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label style="color:var(--muted);font-size:13px">تبديل الشبكة</label>
+          <input type="checkbox" id="gridToggle" />
+        </div>
+      </div>
+
+      <div class="canvas-wrap">
+        <div class="canvas-card">
+          <canvas id="draw" width="1200" height="800"></canvas>
+          <svg id="gridSVG" style="position:absolute;inset:12px;pointer-events:none;display:none" width="100%" height="100%" viewBox="0 0 1200 800" preserveAspectRatio="none"></svg>
+        </div>
+        <div class="footer">
+          <div id="info">الخطوط: 0 — عناصر محفوظة</div>
+          <div>تنسيقات: SVG / PNG / DST / JSON</div>
+        </div>
+      </div>
+    </main>
   </div>
-  <canvas id="canvas" width="400" height="400"></canvas>
 
   <script>
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
+    const canvas = document.getElementById('draw');
+    const ctx = canvas.getContext('2d');
+    const rect = () => canvas.getBoundingClientRect();
     let drawing = false;
     let strokes = [];
-    let currentStroke = [];
+    let current = null;
 
-    canvas.addEventListener("mousedown", start);
-    canvas.addEventListener("touchstart", start);
-    canvas.addEventListener("mousemove", draw);
-    canvas.addEventListener("touchmove", draw);
-    canvas.addEventListener("mouseup", end);
-    canvas.addEventListener("touchend", end);
+    function resizeCanvas(){
+      const r = rect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.style.width = r.width + 'px';
+      canvas.style.height = r.height + 'px';
+      canvas.width = Math.round(r.width * dpr);
+      canvas.height = Math.round(r.height * dpr);
+      ctx.scale(dpr, dpr);
+      redraw();
+    }
+    window.addEventListener('resize', resizeCanvas);
+    setTimeout(resizeCanvas, 50);
 
-    function getPos(e) {
-      if (e.touches) e = e.touches[0];
-      const rect = canvas.getBoundingClientRect();
-      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const sizeInput = document.getElementById('size');
+    const sizeVal = document.getElementById('sizeVal');
+    sizeInput.addEventListener('input', ()=>{sizeVal.textContent = sizeInput.value});
+
+    const palette = ['#0f172a','#06b6d4','#ef4444','#f59e0b','#10b981','#7c3aed','#f97316','#111827'];
+    const colorsEl = document.getElementById('colors');
+    let currentColor = palette[1];
+    palette.forEach(c=>{
+      const b = document.createElement('div');b.className='color-swatch';b.style.background=c;
+      b.addEventListener('click',()=>{currentColor=c;});
+      colorsEl.appendChild(b);
+    });
+
+    function getPointer(ev){
+      const r = rect();
+      const p = ev.touches ? ev.touches[0] : ev;
+      return {x: Math.max(0, Math.min(r.width, p.clientX - r.left)), y: Math.max(0, Math.min(r.height, p.clientY - r.top))};
     }
 
-    function start(e) {
+    function begin(x,y){
       drawing = true;
-      currentStroke = [];
-      const pos = getPos(e);
-      currentStroke.push(pos);
-      ctx.beginPath();
-      ctx.moveTo(pos.x, pos.y);
+      current = {color:currentColor, size:parseInt(sizeInput.value,10), points:[{x,y}]};
+      strokes.push(current);
+      updateInfo();
     }
+    function move(x,y){
+      if(!drawing || !current) return;
+      current.points.push({x,y});
+      drawStrokeSegment(current);
+    }
+    function end(){drawing = false; current = null; updateInfo();}
 
-    function draw(e) {
-      if (!drawing) return;
-      const pos = getPos(e);
-      currentStroke.push(pos);
-      ctx.lineTo(pos.x, pos.y);
+    function clearCanvas(){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      const r = rect();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0,0,r.width,r.height);
+    }
+    function redraw(){clearCanvas(); strokes.forEach(s=> drawFullStroke(s));}
+    function drawFullStroke(s){
+      if(s.points.length<2) return;
+      ctx.lineCap='round'; ctx.lineJoin='round';
+      ctx.strokeStyle=s.color; ctx.lineWidth=s.size;
+      ctx.beginPath();
+      ctx.moveTo(s.points[0].x, s.points[0].y);
+      for(let i=1;i<s.points.length;i++) ctx.lineTo(s.points[i].x, s.points[i].y);
       ctx.stroke();
     }
-
-    function end(e) {
-      if (!drawing) return;
-      drawing = false;
-      strokes.push({ points: currentStroke });
+    function drawStrokeSegment(s){
+      const p=s.points; const n=p.length;
+      if(n<2) return;
+      ctx.lineCap='round'; ctx.lineJoin='round';
+      ctx.strokeStyle=s.color; ctx.lineWidth=s.size;
+      ctx.beginPath(); ctx.moveTo(p[n-2].x,p[n-2].y); ctx.lineTo(p[n-1].x,p[n-1].y); ctx.stroke();
     }
 
-    document.getElementById("clear").onclick = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      strokes = [];
-    };
+    canvas.addEventListener('pointerdown', e=>{canvas.setPointerCapture(e.pointerId); const p=getPointer(e); begin(p.x,p.y);});
+    canvas.addEventListener('pointermove', e=>{if(!drawing) return; const p=getPointer(e); move(p.x,p.y);});
+    canvas.addEventListener('pointerup', e=>{canvas.releasePointerCapture(e.pointerId); end();});
+    canvas.addEventListener('pointercancel', end);
 
-    document.getElementById("undo").onclick = () => {
-      strokes.pop();
-      redraw();
-    };
+    document.getElementById('undoBtn').addEventListener('click', ()=>{ if(strokes.length){strokes.pop(); redraw(); updateInfo();} });
+    document.getElementById('newBtn').addEventListener('click', ()=>{ if(confirm('مسح الرسم الحالي؟')){strokes=[]; redraw(); updateInfo();}});
 
-    function redraw(){
-      ctx.clearRect(0,0,canvas.width,canvas.height);
-      for(let s of strokes){
-        ctx.beginPath();
-        ctx.moveTo(s.points[0].x, s.points[0].y);
-        for(let p of s.points){
-          ctx.lineTo(p.x, p.y);
-        }
-        ctx.stroke();
-      }
-    }
+    document.getElementById('saveJson').addEventListener('click', ()=>{
+      const data = JSON.stringify({strokes}, null, 2);
+      downloadData(data, 'embroidery-template.json', 'application/json');
+    });
+    document.getElementById('exportSvg').addEventListener('click', ()=>{
+      const svg = strokesToSVG();
+      downloadData(svg, 'embroidery.svg', 'image/svg+xml');
+    });
+    document.getElementById('exportPng').addEventListener('click', ()=>{
+      const svg = strokesToSVG(); const img = new Image();
+      const svgBlob=new Blob([svg],{type:'image/svg+xml;charset=utf-8'});
+      const url=URL.createObjectURL(svgBlob);
+      img.onload=()=>{const tmp=document.createElement('canvas');tmp.width=canvas.width;tmp.height=canvas.height;const tctx=tmp.getContext('2d');tctx.fillStyle='#ffffff';tctx.fillRect(0,0,tmp.width,tmp.height);tctx.drawImage(img,0,0,tmp.width,tmp.height);tmp.toBlob(b=>{downloadBlob(b,'embroidery.png');URL.revokeObjectURL(url);});};
+      img.src=url;
+    });
 
-    function interpolatePoints(points, step=2) {
-      let newPoints = [];
-      for(let i=1; i<points.length; i++){
-        let p1 = points[i-1];
-        let p2 = points[i];
-        let dx = p2.x - p1.x;
-        let dy = p2.y - p1.y;
-        let dist = Math.sqrt(dx*dx + dy*dy);
-        let steps = Math.max(1, Math.round(dist/step));
-        for(let k=0; k<steps; k++){
-          let t = k/steps;
-          newPoints.push({
-            x: p1.x + dx*t,
-            y: p1.y + dy*t
-          });
-        }
-      }
-      newPoints.push(points[points.length-1]);
-      return newPoints;
-    }
+    document.getElementById('exportDst').addEventListener('click', ()=>{
+      const dst = strokesToDST(strokes);
+      downloadData(dst, 'embroidery.dst', 'application/octet-stream');
+    });
 
-    function strokesToDST(strokes, stitchLen){
+    function strokesToDST(strokes){
       let header = new Uint8Array(512);
       let body = [];
-
+      const stitchLen = 3;
       for(let s of strokes){
-        let pts = interpolatePoints(s.points, stitchLen);
-        for(let p of pts){
-          let x = Math.round(p.x);
-          let y = -Math.round(p.y);
-          body.push(x & 0xFF, y & 0xFF, 0);
+        for(let i=1;i<s.points.length;i++){
+          let p1 = s.points[i-1]; let p2 = s.points[i];
+          let dx = p2.x - p1.x; let dy = p2.y - p1.y;
+          let dist = Math.sqrt(dx*dx + dy*dy);
+          let steps = Math.max(1, Math.round(dist / stitchLen));
+          for(let k=0;k<=steps;k++){
+            let x = Math.round(p1.x + dx * (k/steps));
+            let y = -Math.round(p1.y + dy * (k/steps));
+            body.push(x & 0xFF, y & 0xFF, 0);
+          }
         }
       }
-
       body.push(0x1A,0,0);
-
       let result = new Uint8Array(header.length+body.length);
-      result.set(header,0);
-      result.set(body,header.length);
+      result.set(header,0); result.set(body,header.length);
       return result.buffer;
     }
 
-    function downloadData(data, filename, type) {
-      const blob = new Blob([data], {type});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+    function strokesToSVG(){
+      const w = rect().width, h = rect().height;
+      let svg = `<?xml version="1.0"?><svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}' viewBox='0 0 ${w} ${h}'>`;
+      svg+=`<rect width='100%' height='100%' fill='white'/>`;
+      strokes.forEach(s=>{
+        if(s.points.length<2) return;
+        const d=s.points.map((p,i)=>i===0?`M ${p.x} ${p.y}`:`L ${p.x} ${p.y}`).join(' ');
+        svg+=`<path d='${d}' stroke='${s.color}' stroke-width='${s.size}' fill='none' stroke-linecap='round' stroke-linejoin='round'/>`;
+      });
+      svg+='</svg>'; return svg;
     }
 
-    document.getElementById("exportDst").addEventListener("click", () => {
-      const stitchLen = parseFloat(document.getElementById("stitchLen").value);
-      const dst = strokesToDST(strokes, stitchLen);
-      downloadData(dst, "embroidery.dst", "application/octet-stream");
-    });
-
-    const stitchLenSlider = document.getElementById("stitchLen");
-    const stitchValue = document.getElementById("stitchValue");
-    stitchLenSlider.addEventListener("input", ()=>{
-      stitchValue.textContent = stitchLenSlider.value;
-    });
+    function downloadData(data, filename, type){
+      const blob = (data instanceof ArrayBuffer) ? new Blob([data],{type}) : new Blob([data],{type});
+      const url = URL.createObjectURL(blob);
+      const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+    }
+    function downloadBlob(b,name){const url=URL.createObjectURL(b);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);}
+    function updateInfo(){document.getElementById('info').textContent=`المسارات: ${strokes.length}`;}
   </script>
 </body>
 </html>
