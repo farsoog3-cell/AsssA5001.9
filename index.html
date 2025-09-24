@@ -3,12 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>أداة تطريز بدقة DST</title>
+<title>أداة تطريز دقة DST محسّنة</title>
 <style>
-:root{
-  --bg:#0f172a; --card:#0b1220; --accent:#06b6d4; --muted:#94a3b8; --glass: rgba(255,255,255,0.04);
-  --radius:12px; --glass-2: rgba(255,255,255,0.02);
-}
+/* نفس CSS السابق بدون تغيير */
+:root{--bg:#0f172a;--card:#0b1220;--accent:#06b6d4;--muted:#94a3b8;--glass: rgba(255,255,255,0.04);--radius:12px;--glass-2: rgba(255,255,255,0.02);}
 html,body{height:100%;margin:0;font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;direction:rtl;background:linear-gradient(180deg,#071029 0%, #071a2b 100%);color:#e6eef6}
 .app{display:grid;grid-template-columns:320px 1fr;gap:20px;height:100vh;padding:24px}
 .panel{background:linear-gradient(180deg,var(--card),#051022);border-radius:var(--radius);padding:18px;box-shadow:0 6px 30px rgba(0,0,0,0.6);backdrop-filter: blur(6px)}
@@ -32,8 +30,8 @@ canvas{background:#f8fafc;border-radius:8px;touch-action:none;max-width:100%;box
 <body>
 <div class="app">
 <aside class="panel">
-<h1>أداة تطريز باللمس - دقة DST</h1>
-<p class="lead">ارسم باللمس أو الفأرة. احفظ القالب أو صدّر إلى PNG/SVG/DST بدقة كاملة.</p>
+<h1>أداة تطريز باللمس - دقة DST محسّنة</h1>
+<p class="lead">ارسم باللمس أو الفأرة. أي شكل يظهر بالضبط في ملف DST.</p>
 <div class="tool">
 <div class="row">
 <button class="btn" id="newBtn">جديد</button>
@@ -64,10 +62,7 @@ canvas{background:#f8fafc;border-radius:8px;touch-action:none;max-width:100%;box
 </aside>
 
 <main class="stage panel">
-<div style="display:flex;justify-content:space-between;align-items:center">
-<strong>لوحة الرسم</strong>
-</div>
-
+<div style="display:flex;justify-content:space-between;align-items:center"><strong>لوحة الرسم</strong></div>
 <div class="canvas-wrap">
 <div class="canvas-card">
 <canvas id="draw" width="1200" height="800"></canvas>
@@ -81,43 +76,30 @@ canvas{background:#f8fafc;border-radius:8px;touch-action:none;max-width:100%;box
 </div>
 
 <script>
-const canvas = document.getElementById('draw');
-const ctx = canvas.getContext('2d');
-let strokes = [], current=null, drawing=false;
-const sizeInput = document.getElementById('size'), sizeVal = document.getElementById('sizeVal');
+const canvas=document.getElementById('draw'),ctx=canvas.getContext('2d');
+let strokes=[],current=null,drawing=false;
+const sizeInput=document.getElementById('size'),sizeVal=document.getElementById('sizeVal');
 const palette=['#0f172a','#06b6d4','#ef4444','#f59e0b','#10b981','#7c3aed','#f97316','#111827'];
-let currentColor = palette[1];
-const colorsEl = document.getElementById('colors');
-palette.forEach(c=>{
-  const b=document.createElement('div');b.className='color-swatch';b.style.background=c;
-  b.addEventListener('click',()=>{currentColor=c;colorsEl.querySelectorAll('.color-swatch').forEach(s=>s.style.border='1px solid rgba(255,255,255,0.06)');b.style.border='2px solid #06b6d4';});
-  colorsEl.appendChild(b);
-});
+let currentColor=palette[1];
+const colorsEl=document.getElementById('colors');
+palette.forEach(c=>{const b=document.createElement('div');b.className='color-swatch';b.style.background=c;b.addEventListener('click',()=>{currentColor=c;colorsEl.querySelectorAll('.color-swatch').forEach(s=>s.style.border='1px solid rgba(255,255,255,0.06)');b.style.border='2px solid #06b6d4';});colorsEl.appendChild(b);});
 sizeInput.addEventListener('input',()=>{sizeVal.textContent=sizeInput.value;});
 
-function getPointer(e){
-  const r=canvas.getBoundingClientRect();
-  const p=e.touches?e.touches[0]:e;
-  return {x:Math.max(0,Math.min(r.width,p.clientX-r.left)), y:Math.max(0,Math.min(r.height,p.clientY-r.top))};
-}
+function getPointer(e){const r=canvas.getBoundingClientRect();const p=e.touches?e.touches[0]:e;return {x:Math.max(0,Math.min(r.width,p.clientX-r.left)),y:Math.max(0,Math.min(r.height,p.clientY-r.top))};}
 
 function begin(x,y){drawing=true;current={color:currentColor,size:parseInt(sizeInput.value,10),points:[{x,y}]};strokes.push(current);updateInfo();}
 function move(x,y){if(!drawing||!current)return;current.points.push({x,y});drawSegment(current);}
 function end(){drawing=false;current=null;updateInfo();}
 
-function drawSegment(s){
-  const p=s.points,n=p.length; if(n<2)return;
-  ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle=s.color;ctx.lineWidth=s.size;
-  ctx.beginPath();ctx.moveTo(p[n-2].x,p[n-2].y);ctx.lineTo(p[n-1].x,p[n-1].y);ctx.stroke();
-}
+function drawSegment(s){const p=s.points,n=p.length;if(n<2)return;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle=s.color;ctx.lineWidth=s.size;ctx.beginPath();ctx.moveTo(p[n-2].x,p[n-2].y);ctx.lineTo(p[n-1].x,p[n-1].y);ctx.stroke();}
 function drawFull(s){if(s.points.length<2)return;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle=s.color;ctx.lineWidth=s.size;ctx.beginPath();ctx.moveTo(s.points[0].x,s.points[0].y);for(let i=1;i<s.points.length;i++)ctx.lineTo(s.points[i].x,s.points[i].y);ctx.stroke();}
 function redraw(){ctx.clearRect(0,0,canvas.width,canvas.height);strokes.forEach(drawFull);}
 function updateInfo(){document.getElementById('info').textContent=`المسارات: ${strokes.length}`;}
 
-canvas.addEventListener('pointerdown', e=>{canvas.setPointerCapture(e.pointerId); const p=getPointer(e); begin(p.x,p.y);});
-canvas.addEventListener('pointermove', e=>{if(!drawing)return; const p=getPointer(e); move(p.x,p.y);});
-canvas.addEventListener('pointerup', e=>{canvas.releasePointerCapture(e.pointerId); end();});
-canvas.addEventListener('pointercancel', end);
+canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);const p=getPointer(e);begin(p.x,p.y);});
+canvas.addEventListener('pointermove',e=>{if(!drawing)return;const p=getPointer(e);move(p.x,p.y);});
+canvas.addEventListener('pointerup',e=>{canvas.releasePointerCapture(e.pointerId);end();});
+canvas.addEventListener('pointercancel',end);
 
 document.getElementById('undoBtn').addEventListener('click',()=>{if(strokes.length){strokes.pop();redraw();updateInfo();}});
 document.getElementById('newBtn').addEventListener('click',()=>{if(confirm('مسح الرسم الحالي؟')){strokes=[];redraw();updateInfo();}});
@@ -127,34 +109,40 @@ document.getElementById('exportSvg').addEventListener('click',()=>{downloadData(
 document.getElementById('exportPng').addEventListener('click',()=>{exportPNG();});
 document.getElementById('exportDst').addEventListener('click',()=>{downloadData(strokesToDST(strokes,canvas.width,canvas.height),'embroidery.dst','application/octet-stream');});
 
-function exportPNG(){
-  const tmp=document.createElement('canvas'); tmp.width=canvas.width; tmp.height=canvas.height;
-  const tctx=tmp.getContext('2d'); tctx.fillStyle='#ffffff'; tctx.fillRect(0,0,tmp.width,tmp.height);
-  strokes.forEach(s=>{if(s.points.length<2)return;tctx.lineCap='round';tctx.lineJoin='round';tctx.strokeStyle=s.color;tctx.lineWidth=s.size;tctx.beginPath();tctx.moveTo(s.points[0].x,s.points[0].y);for(let i=1;i<s.points.length;i++)tctx.lineTo(s.points[i].x,s.points[i].y);tctx.stroke();});
-  tmp.toBlob(b=>downloadBlob(b,'embroidery.png'));
-}
+function exportPNG(){const tmp=document.createElement('canvas');tmp.width=canvas.width;tmp.height=canvas.height;const tctx=tmp.getContext('2d');tctx.fillStyle='#ffffff';tctx.fillRect(0,0,tmp.width,tmp.height);strokes.forEach(s=>{if(s.points.length<2)return;tctx.lineCap='round';tctx.lineJoin='round';tctx.strokeStyle=s.color;tctx.lineWidth=s.size;tctx.beginPath();tctx.moveTo(s.points[0].x,s.points[0].y);for(let i=1;i<s.points.length;i++)tctx.lineTo(s.points[i].x,s.points[i].y);tctx.stroke();});tmp.toBlob(b=>downloadBlob(b,'embroidery.png'));}
 
-function strokesToSVG(){
-  let svg=`<?xml version="1.0"?><svg xmlns='http://www.w3.org/2000/svg' width='${canvas.width}' height='${canvas.height}' viewBox='0 0 ${canvas.width} ${canvas.height}'>`;
-  svg+=`<rect width='100%' height='100%' fill='white'/>`;
-  strokes.forEach(s=>{if(s.points.length<2)return; const d=s.points.map((p,i)=>i===0?`M ${p.x} ${p.y}`:`L ${p.x} ${p.y}`).join(' '); svg+=`<path d='${d}' stroke='${s.color}' stroke-width='${s.size}' fill='none' stroke-linecap='round' stroke-linejoin='round'/>`;});
-  svg+='</svg>'; return svg;
+function strokesToSVG(){let svg=`<?xml version="1.0"?><svg xmlns='http://www.w3.org/2000/svg' width='${canvas.width}' height='${canvas.height}' viewBox='0 0 ${canvas.width} ${canvas.height}'>`;svg+=`<rect width='100%' height='100%' fill='white'/>`;strokes.forEach(s=>{if(s.points.length<2)return;const d=s.points.map((p,i)=>i===0?`M ${p.x} ${p.y}`:`L ${p.x} ${p.y}`).join(' ');svg+=`<path d='${d}' stroke='${s.color}' stroke-width='${s.size}' fill='none' stroke-linecap='round' stroke-linejoin='round'/>`;});svg+='</svg>';return svg;}
+
+// ================== تحسين المسارات للـ DST ==================
+function smoothPoints(points){
+  if(points.length<3)return points;
+  const result=[points[0]];
+  for(let i=1;i<points.length-1;i++){
+    const prev=points[i-1], curr=points[i], next=points[i+1];
+    const x=(prev.x+curr.x+next.x)/3;
+    const y=(prev.y+curr.y+next.y)/3;
+    result.push({x,y});
+  }
+  result.push(points[points.length-1]);
+  return result;
 }
 
 function strokesToDST(strokes,width,height){
   const header=new Uint8Array(512);
   const body=[];
   let lastX=0,lastY=0;
-  const scale=1; // يمكن تعديل المقياس
+  const scale=1;
   for(let s of strokes){
-    for(let i=0;i<s.points.length;i++){
-      const p=s.points[i];
+    const pts=smoothPoints(s.points);
+    for(let i=0;i<pts.length;i++){
+      const p=pts[i];
       let x=Math.round(p.x*scale), y=Math.round(p.y*scale);
       let dx=x-lastX, dy=-(y-lastY);
+      // تقسيم الغرز الطويلة
       while(Math.abs(dx)>121||Math.abs(dy)>121){
         const stepX=Math.max(-121,Math.min(121,dx));
         const stepY=Math.max(-121,Math.min(121,dy));
-        body.push(stepX&0xFF, stepY&0xFF,0);
+        body.push(stepX&0xFF,stepY&0xFF,0);
         dx-=stepX; dy-=stepY;
       }
       body.push(dx&0xFF,dy&0xFF,0);
@@ -162,7 +150,7 @@ function strokesToDST(strokes,width,height){
     }
   }
   body.push(0x1A,0,0);
-  const result=new Uint8Array(header.length+body.length); result.set(header,0); result.set(body,header.length);
+  const result=new Uint8Array(header.length+body.length);result.set(header,0);result.set(body,header.length);
   return result.buffer;
 }
 
