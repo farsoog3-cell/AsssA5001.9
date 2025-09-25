@@ -1,189 +1,171 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>mlfa2026 — Molfa Embroidery</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mlfa2026 — تحويل صورة إلى غرز احترافي</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-  body{font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial; background:#f3f4f6; color:#111;}
-  .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace; background:#111; color:#fff; padding:8px; border-radius:6px;}
-  .svg-wrap { width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
-  footer{background:#111; color:#fff; padding:2rem; margin-top:2rem; border-radius:0.5rem;}
-  footer h4{font-weight:bold; margin-bottom:0.5rem;}
+  body { font-family: Inter, sans-serif; background:#f3f4f6; color:#111; }
+  .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; background:#111; color:#fff; padding:0.5rem; border-radius:0.25rem;}
+  canvas { display:none; }
 </style>
 </head>
-<body class="min-h-screen flex flex-col">
-<header class="bg-indigo-700 text-white py-4 shadow text-center">
-  <h1 class="text-xl md:text-2xl font-semibold">mlfa2026 — Molfa Embroidery</h1>
-  <p class="text-sm">رفع صورة، إزالة الخلفية، تحويل تلقائي للغرز</p>
+<body class="flex flex-col items-center p-4">
+
+<header class="text-center mb-4">
+  <h1 class="text-2xl font-bold">mlfa2026 — تحويل صورة → غرز بدون خلفية</h1>
+  <p class="text-sm">تم تطوير الموقع من قبل: ملهم (المبرمج) وفارس (المطور). عمل مشترك في إنتاج هذا الموقع.</p>
 </header>
 
-<main class="container mx-auto p-4 flex-grow">
-  <div class="bg-white rounded-xl shadow p-4 space-y-4">
-    <div class="flex flex-col md:flex-row gap-4">
-      <!-- Controls -->
-      <div class="flex flex-col gap-3">
-        <label for="file" class="cursor-pointer inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md shadow">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 12v8m0 0l-4-4m4 4l4-4m-4-8V4m0 0l-4 4m4-4l4 4" />
-          </svg>
-          <span>رفع صورة</span>
-        </label>
-        <input id="file" type="file" accept="image/*" style="display:none"/>
-        <button id="process" class="bg-green-600 hover:bg-green-700 text-white py-2 rounded">🔧 توليد الغرز</button>
-      </div>
+<div class="flex flex-col md:flex-row gap-4 w-full max-w-4xl">
+  <div class="flex flex-col gap-3 md:w-1/3">
+    <label class="font-medium">اختر صورة</label>
+    <input type="file" id="file" accept="image/*" class="p-2 border rounded"/>
 
-      <!-- Preview & log -->
-      <div class="flex-1 space-y-3">
-        <div class="bg-gray-50 p-3 rounded min-h-[260px] sm:min-h-[380px] flex items-center justify-center">
-          <div id="svgPreview" class="svg-wrap text-gray-500">لم يتم التوليد بعد</div>
-        </div>
-        <div class="bg-white p-3 rounded border">
-          <div class="flex items-center justify-between">
-            <h4 class="font-bold mb-2">سجل المعالجة</h4>
-            <button id="clearLog" class="text-xs text-indigo-600">مسح</button>
-          </div>
-          <pre id="log" class="mono text-xs h-40 overflow-auto whitespace-pre-wrap"></pre>
-        </div>
-      </div>
-    </div>
+    <label>عدد الألوان</label>
+    <input id="colors" type="number" value="4" min="1" max="12" class="p-2 border rounded"/>
+
+    <label>طول الغرزة (px)</label>
+    <input id="stitchLen" type="number" value="4" min="1" max="40" class="p-2 border rounded"/>
+
+    <label>تباعد الغرز (px)</label>
+    <input id="stitchGap" type="number" value="4" min="1" max="40" class="p-2 border rounded"/>
+
+    <label>زاوية الغرز (°)</label>
+    <input id="angle" type="number" value="45" min="0" max="180" class="p-2 border rounded"/>
+
+    <button id="process" class="bg-indigo-600 text-white py-2 rounded">🔧 توليد الغرز</button>
   </div>
-</main>
 
-<canvas id="work" style="display:none"></canvas>
+  <div class="md:w-2/3 flex flex-col gap-3">
+    <div id="svgPreview" class="w-full h-80 border rounded flex items-center justify-center text-gray-500">
+      لم يتم التوليد بعد
+    </div>
 
-<!-- Footer -->
-<footer class="mt-8">
-  <div class="max-w-4xl mx-auto space-y-4">
-    <div>
-      <h4>من نحن</h4>
-      <p>موقع mlfa2026 هو منصة متخصصة في تحويل الصور إلى غرز تطريز جاهزة للماكينات، مع توفير معاينة مباشرة وتحسينات احترافية للصور.</p>
-    </div>
-    <div>
-      <h4>أصحاب الموقع</h4>
-      <ul class="list-disc list-inside">
-        <li>ملهم — الملهم ومطور أدوات البرمجة</li>
-        <li>فارس — مهندس البرمجة والمطور الرئيسي</li>
-      </ul>
-    </div>
+    <pre id="log" class="mono h-40 overflow-auto"></pre>
   </div>
-</footer>
+</div>
+
+<canvas id="work"></canvas>
 
 <script>
-// ----------------- سجل المعالجة -----------------
-const logEl=document.getElementById('log');
-function log(msg){ const t=new Date().toLocaleTimeString(); logEl.textContent+=`[${t}] ${msg}\n`; logEl.scrollTop=logEl.scrollHeight;}
-document.getElementById('clearLog').addEventListener('click',()=>logEl.textContent='');
+function log(msg){ const el=document.getElementById('log'); el.textContent+=msg+'\n'; el.scrollTop=el.scrollHeight; }
 
-// ----------------- رفع الصورة -----------------
-const fileInput=document.getElementById('file');
-let imgDataURL=null;
-fileInput.addEventListener('change', async()=>{
-  const f=fileInput.files[0];
-  if(!f){ log('لم يتم اختيار ملف'); return; }
-  log('تحميل الصورة...');
-  imgDataURL = await new Promise(res=>{
-    const fr=new FileReader();
-    fr.onload=e=>res(e.target.result);
-    fr.readAsDataURL(f);
+async function readFileAsImage(file){
+  return new Promise((res, rej)=>{
+    const fr = new FileReader();
+    fr.onload = e=>{
+      const img = new Image();
+      img.onload = ()=>res(img);
+      img.onerror=rej;
+      img.src=e.target.result;
+    };
+    fr.onerror=rej;
+    fr.readAsDataURL(file);
   });
-  log('تم تحميل الصورة');
-  displayPreview(imgDataURL);
-});
-
-function displayPreview(dataURL){
-  const previewDiv=document.getElementById('svgPreview');
-  previewDiv.innerHTML='';
-  const img=new Image();
-  img.src=dataURL;
-  img.style.maxWidth='100%';
-  img.style.height='auto';
-  previewDiv.appendChild(img);
 }
 
-// ----------------- المعالجة وتحويل الغرز -----------------
-document.getElementById('process').addEventListener('click', async()=>{
-  if(!imgDataURL){ alert('اختر صورة أولاً'); return; }
-  log('بدء المعالجة...');
-  const img = new Image();
-  img.src = imgDataURL;
-  img.onload=()=>{
-    const canvas=document.getElementById('work');
-    canvas.width=img.width;
-    canvas.height=img.height;
-    const ctx=canvas.getContext('2d');
-    ctx.drawImage(img,0,0);
-
-    const imgData=ctx.getImageData(0,0,canvas.width,canvas.height);
-    const data=imgData.data;
-
-    // إزالة الخلفية البيضاء
-    for(let i=0;i<data.length;i+=4){
-      if(data[i]>240 && data[i+1]>240 && data[i+2]>240) data[i+3]=0;
-    }
-    ctx.putImageData(imgData,0,0);
-    log('تمت إزالة الخلفية');
-
-    // توليد الغرز
-    log('توليد الغرز (محاكاة ماكينة)...');
-    const stitches=[];
-    const step = 4; // طول الغرزة
-    for(let y=0;y<canvas.height;y+=step){
-      for(let x=0;x<canvas.width;x+=step){
-        const idx=(y*canvas.width + x)*4;
-        if(data[idx+3]>0) stitches.push([x,y]);
-      }
-    }
-    log(`تم توليد ${stitches.length} غرزة تقريبية`);
-
-    // إنشاء SVG للمعاينة
-    let svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${canvas.width}" height="${canvas.height}" viewBox="0 0 ${canvas.width} ${canvas.height}">`;
-    svg+=`<rect width="100%" height="100%" fill="white"/>`;
-    svg+=`<image href="${imgDataURL}" width="${canvas.width}" height="${canvas.height}" opacity="0.3"/>`;
-    svg+=`<g stroke="red" stroke-width="1" stroke-linecap="round">`;
-    for(const s of stitches){
-      svg+=`<line x1="${s[0]}" y1="${s[1]}" x2="${s[0]+1}" y2="${s[1]+1}"/>`;
-    }
-    svg+=`</g></svg>`;
-    const previewDiv=document.getElementById('svgPreview');
-    previewDiv.innerHTML='';
-    const blob=new Blob([svg],{type:'image/svg+xml'});
-    const url=URL.createObjectURL(blob);
-    const obj=document.createElement('object');
-    obj.data=url;
-    obj.type='image/svg+xml';
-    obj.style.width='100%';
-    obj.style.height='100%';
-    previewDiv.appendChild(obj);
-    log('تم إنشاء SVG المعاينة');
-
-    // إنشاء ملفات DST/DTE
-    function buildDst(points){
-      const header=new Uint8Array(512);
-      const body=[];
-      let prevx=0,prevy=0;
-      for(const p of points){
-        const dx=p[0]-prevx, dy=p[1]-prevy;
-        body.push(dx&0xFF, dy&0xFF, 0x00);
-        prevx=p[0]; prevy=p[1];
-      }
-      body.push(0,0,0xF3);
-      const arr=new Uint8Array(512+body.length);
-      arr.set(header,0);
-      arr.set(new Uint8Array(body),512);
-      return arr;
-    }
-    const dstArr=buildDst(stitches);
-    const dteArr=buildDst(stitches);
-
-    const download=(blob,name)=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click();}
-    download(blob,'pattern.svg');
-    download(new Blob([dstArr],{type:'application/octet-stream'}),'pattern.dst');
-    download(new Blob([dteArr],{type:'application/octet-stream'}),'pattern.dte');
-    log('تم تنزيل الملفات');
+function removeBackground(img, threshold=250){
+  const c = document.getElementById('work');
+  c.width = img.width; c.height = img.height;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img,0,0);
+  const id = ctx.getImageData(0,0,img.width,img.height);
+  for(let i=0;i<id.data.length;i+=4){
+    const r=id.data[i],g=id.data[i+1],b=id.data[i+2];
+    if(r>threshold && g>threshold && b>threshold){ id.data[i+3]=0; }
   }
+  ctx.putImageData(id,0,0);
+  return c;
+}
+
+function generateStitches(canvas){
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const id = ctx.getImageData(0,0,w,h);
+  const visited = new Uint8Array(w*h);
+  const paths=[];
+  function getIndex(x,y){ return y*w + x; }
+
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      const idx = getIndex(x,y);
+      if(visited[idx]) continue;
+      const a = id.data[idx*4+3];
+      if(a<128) continue;
+      const stack=[[x,y]];
+      const path=[];
+      visited[idx]=1;
+      while(stack.length){
+        const [cx,cy]=stack.pop();
+        path.push([cx,cy]);
+        const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+        for(const [dx,dy] of dirs){
+          const nx=cx+dx, ny=cy+dy;
+          if(nx<0||ny<0||nx>=w||ny>=h) continue;
+          const nidx = getIndex(nx,ny);
+          if(visited[nidx]) continue;
+          if(id.data[nidx*4+3]>=128){ visited[nidx]=1; stack.push([nx,ny]); }
+        }
+      }
+      if(path.length>5) paths.push(path);
+    }
+  }
+  return paths;
+}
+
+function buildSVG(paths, w, h){
+  let svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}' viewBox='0 0 ${w} ${h}'>`;
+  svg += `<rect width='100%' height='100%' fill='transparent'/>`;
+  svg += `<g stroke="black" stroke-width="1" fill="none">`;
+  for(const path of paths){ svg+=`<path d="M${path.map(p=>p.join(',')).join(' L')}"/>`; }
+  svg+='</g></svg>';
+  return svg;
+}
+
+function buildDst(paths){
+  const arr = [];
+  for(const path of paths){
+    for(const p of path){
+      arr.push(p[0] & 0xFF, p[1] & 0xFF, 0x00);
+    }
+  }
+  arr.push(0x00,0x00,0xF3);
+  return new Uint8Array(arr);
+}
+
+document.getElementById('process').addEventListener('click', async ()=>{
+  const file=document.getElementById('file').files[0];
+  if(!file){ alert('اختر صورة أولاً'); return; }
+  log('تحميل الصورة...');
+  const img = await readFileAsImage(file);
+  log('إزالة الخلفية...');
+  const canvas = removeBackground(img);
+  log('توليد مسارات الغرز...');
+  const paths = generateStitches(canvas);
+  log(`عدد المسارات: ${paths.length}`);
+
+  log('بناء SVG...');
+  const svg = buildSVG(paths,canvas.width,canvas.height);
+  const svgBlob = new Blob([svg],{type:'image/svg+xml'});
+  const svgURL = URL.createObjectURL(svgBlob);
+
+  const dstArr = buildDst(paths);
+  const dstBlob = new Blob([dstArr],{type:'application/octet-stream'});
+  const dstURL = URL.createObjectURL(dstBlob);
+
+  const preview=document.getElementById('svgPreview');
+  preview.innerHTML=`<object type="image/svg+xml" data="${svgURL}" style="width:100%; height:100%; display:block;"></object>`;
+
+  const dlDiv = document.createElement('div'); dlDiv.className='mt-2 flex gap-2';
+  const a1=document.createElement('a'); a1.href=svgURL; a1.download='pattern.svg'; a1.textContent='⬇️ تحميل SVG'; a1.className='bg-blue-600 text-white py-1 px-2 rounded';
+  const a2=document.createElement('a'); a2.href=dstURL; a2.download='pattern.dst'; a2.textContent='⬇️ تحميل DST'; a2.className='bg-green-600 text-white py-1 px-2 rounded';
+  dlDiv.appendChild(a1); dlDiv.appendChild(a2); preview.appendChild(dlDiv);
+
+  log('تم التوليد بنجاح. استخدم الأزرار لتحميل الملفات.');
 });
 </script>
+
 </body>
 </html>
