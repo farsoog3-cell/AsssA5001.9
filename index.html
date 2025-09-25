@@ -1,181 +1,349 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>mlfa2026 — تحويل صورة إلى غرز احترافي</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>mlfa2026 — Molfa Embroidery</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-  body { font-family: Inter, sans-serif; background: linear-gradient(135deg,#f0f4f8,#d9e2ec); }
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; background:#111; color:#fff; padding:0.5rem; border-radius:0.5rem; height:250px; overflow:auto;}
-  .card { background:white; border-radius:1rem; box-shadow:0 4px 20px rgba(0,0,0,0.1); padding:1rem; }
-  .btn { transition:0.3s; }
-  .btn:hover { transform: translateY(-2px); }
+  :root { --bg:#f3f4f6; --card:#ffffff; }
+  body{font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial; background:var(--bg); color:#111;}
+  .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace; background:#111; color:#fff; padding:0.5rem; border-radius:0.5rem;}
+  .svg-preview img{ max-width:100%; height:auto; display:block; margin:0 auto; object-fit:contain; }
+  .svg-wrap { width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+  @media (max-width:640px){
+    header h1{ font-size:1.05rem; }
+    .grid-cols-3 { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
-<body class="flex flex-col items-center min-h-screen p-6">
-
-<header class="text-center mb-6">
-  <h1 class="text-4xl font-extrabold text-indigo-700 mb-2">mlfa2026</h1>
-  <p class="text-lg text-gray-700">تحويل صورة → غرز بدون خلفية</p>
-  <p class="text-sm text-gray-500 mt-1">تم تطوير الموقع من قبل: ملهم (المبرمج) وفارس (المطور). عمل مشترك لإنتاج هذا الموقع.</p>
+<body class="min-h-screen flex flex-col">
+<header class="bg-indigo-700 text-white py-4 shadow text-center">
+  <h1 class="text-xl md:text-2xl font-semibold">mlfa2026 — Molfa Embroidery</h1>
+  <p class="text-sm">نسخة محسّنة: دعم الموبايل، إزالة الخلفية، تحويل الصورة إلى غرز دقيقة</p>
 </header>
 
-<div class="flex flex-col md:flex-row gap-6 w-full max-w-5xl">
+<main class="container mx-auto p-4 md:p-6 flex-grow">
+  <div class="bg-white rounded-xl shadow p-4 md:p-6 space-y-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <!-- Controls -->
+      <div class="space-y-3">
+        <label class="block font-medium">رفع صورة</label>
+        <input id="file" type="file" accept="image/*" class="w-full p-2 border rounded cursor-pointer"/>
 
-  <div class="md:w-1/3 card flex flex-col gap-4">
-    <label class="font-medium text-gray-700">اختر صورة</label>
-    <input type="file" id="file" accept="image/*" class="p-2 border rounded"/>
+        <div class="mt-3 grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <label>عدد الألوان</label>
+            <input id="colors" type="number" value="4" min="1" max="12" class="w-full p-2 border rounded"/>
+          </div>
+          <div>
+            <label>عرض المعاينة (px)</label>
+            <input id="previewW" type="number" value="700" min="200" max="1600" class="w-full p-2 border rounded"/>
+          </div>
+          <div>
+            <label>طول الغرزة (px)</label>
+            <input id="stitchLen" type="number" value="4" min="1" max="40" class="w-full p-2 border rounded"/>
+          </div>
+          <div>
+            <label>تباعد الغرز (px)</label>
+            <input id="stitchGap" type="number" value="4" min="1" max="40" class="w-full p-2 border rounded"/>
+          </div>
+          <div>
+            <label>زاوية الغرز (°)</label>
+            <input id="angle" type="number" value="45" min="0" max="180" class="w-full p-2 border rounded"/>
+          </div>
+          <div>
+            <label>تبسيط المسارات (epsilon)</label>
+            <input id="simplify" type="number" value="0.6" step="0.1" min="0" max="10" class="w-full p-2 border rounded"/>
+          </div>
+        </div>
 
-    <div class="grid grid-cols-2 gap-3">
-      <div>
-        <label class="text-gray-700">عدد الألوان</label>
-        <input id="colors" type="number" value="4" min="1" max="12" class="p-2 border rounded w-full"/>
+        <div class="mt-3">
+          <label class="block text-sm mb-1">نمط الغرز</label>
+          <select id="stitchMode" class="w-full p-2 border rounded">
+            <option value="fill">Fill — تعبئة</option>
+            <option value="satin">Satin — ساتان</option>
+          </select>
+        </div>
+
+        <div class="mt-3 flex flex-col sm:flex-row gap-3">
+          <button id="process" class="flex-1 bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700">🔧 توليد الغرز</button>
+          <button id="previewBtn" class="flex-1 bg-gray-200 text-gray-800 py-2 rounded hover:bg-gray-300">👁 معاينة</button>
+        </div>
+
+        <div class="mt-3 flex flex-col sm:flex-row gap-3">
+          <button id="downloadSvg" class="flex-1 bg-blue-600 text-white py-2 rounded hidden">⬇️ تحميل SVG</button>
+          <button id="downloadDst" class="flex-1 bg-green-600 text-white py-2 rounded hidden">⬇️ تحميل DST</button>
+          <button id="downloadDse" class="flex-1 bg-pink-600 text-white py-2 rounded hidden">⬇️ تحميل DSE</button>
+          <button id="downloadPng" class="flex-1 bg-gray-700 text-white py-2 rounded hidden">⬇️ تحميل PNG</button>
+        </div>
+
+        <div id="spinner" class="hidden mt-4 text-center">
+          <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+          </svg>
+          <p class="text-sm mt-2">جاري المعالجة — تحويل الصورة إلى غرز دقيقة</p>
+        </div>
+
+        <p class="mt-3 text-xs text-gray-600 leading-relaxed">
+          ملاحظة: استخدم صور شفافة أو عالية التباين. بعد التصدير افتح SVG في Ink/Stitch لتحسينات إضافية.
+        </p>
       </div>
-      <div>
-        <label class="text-gray-700">طول الغرزة (px)</label>
-        <input id="stitchLen" type="number" value="4" min="1" max="40" class="p-2 border rounded w-full"/>
-      </div>
-      <div>
-        <label class="text-gray-700">تباعد الغرز (px)</label>
-        <input id="stitchGap" type="number" value="4" min="1" max="40" class="p-2 border rounded w-full"/>
-      </div>
-      <div>
-        <label class="text-gray-700">زاوية الغرز (°)</label>
-        <input id="angle" type="number" value="45" min="0" max="180" class="p-2 border rounded w-full"/>
+
+      <!-- Preview & log -->
+      <div class="md:col-span-2 space-y-3">
+        <div class="bg-gray-50 p-3 rounded min-h-[260px] sm:min-h-[380px] flex items-center justify-center">
+          <div id="svgPreview" class="svg-wrap w-full h-full text-gray-500">لم يتم التوليد بعد</div>
+        </div>
+
+        <div class="bg-black p-3 rounded border">
+          <div class="flex items-center justify-between">
+            <h4 class="font-bold mb-2 text-white">سجل المعالجة</h4>
+            <button id="clearLog" class="text-xs text-indigo-400">مسح</button>
+          </div>
+          <pre id="log" class="mono text-xs h-40 overflow-auto whitespace-pre-wrap"></pre>
+        </div>
       </div>
     </div>
-
-    <button id="process" class="btn bg-indigo-600 text-white py-2 rounded font-semibold hover:bg-indigo-700">🔧 توليد الغرز</button>
   </div>
+</main>
 
-  <div class="md:w-2/3 flex flex-col gap-4">
-    <div id="svgPreview" class="card w-full h-80 flex items-center justify-center text-gray-400">
-      لم يتم التوليد بعد
-    </div>
-    <pre id="log" class="mono"></pre>
-  </div>
-</div>
+<canvas id="work" style="display:none"></canvas>
 
-<canvas id="work"></canvas>
+<footer class="bg-gray-100 mt-4 p-4 text-center text-sm text-gray-700">
+  <p>من نحن: الموقع الذي بين أيديكم من إنتاج مشترك.</p>
+  <p>المبرمج/المطور: ملهم وفارس</p>
+  <p>mlfa2026 © 2026</p>
+</footer>
 
 <script>
-function log(msg){ const el=document.getElementById('log'); el.textContent+=msg+'\n'; el.scrollTop=el.scrollHeight; }
+/* ---------- Utilities ---------- */
+function log(msg){ const el = document.getElementById('log'); const t = new Date().toLocaleTimeString(); el.textContent += `[${t}] ${msg}\n`; el.scrollTop = el.scrollHeight; }
+function clearLog(){ document.getElementById('log').textContent = ''; }
+function showSpinner(){ document.getElementById('spinner').classList.remove('hidden'); }
+function hideSpinner(){ document.getElementById('spinner').classList.add('hidden'); }
+function forceDownload(blob, name){ const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=> URL.revokeObjectURL(url),2000); }
+async function readFileAsDataURL(file){ return await new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=e=>res(e.target.result); fr.onerror=rej; fr.readAsDataURL(file); }); }
 
-async function readFileAsImage(file){
-  return new Promise((res, rej)=>{
-    const fr = new FileReader();
-    fr.onload = e=>{
-      const img = new Image();
-      img.onload = ()=>res(img);
-      img.onerror=rej;
-      img.src=e.target.result;
-    };
-    fr.onerror=rej;
-    fr.readAsDataURL(file);
-  });
-}
+/* ---------- Worker (single-file) ---------- */
+function makeWorkerFromFunc(fn){ const src=fn.toString(); const blob=new Blob(['('+src+')()'], {type:'application/javascript'}); return new Worker(URL.createObjectURL(blob)); }
+const worker = makeWorkerFromFunc(function workerScope(){
+  function postLog(m){ try{ postMessage({type:'log', msg:m}); }catch(e){} }
+  onmessage = async (ev)=>{
+    const msg = ev.data;
+    if(msg.type!=='process') return;
+    try{
+      postLog('عامل: بدء المعالجة');
+      const {dataURL, settings} = msg;
+      const colors = Math.max(1,Math.min(12,parseInt(settings.colors)||4));
+      const previewW = Math.max(120,parseInt(settings.previewW)||600);
+      const stitchLen = Math.max(1,parseInt(settings.stitchLen)||4);
+      const stitchGap = Math.max(1,parseInt(settings.stitchGap)||4);
+      const angle = parseFloat(settings.angle)||45;
+      const mode = settings.mode || 'fill';
+      const exportScale = parseFloat(settings.exportScale)||1.0;
 
-function removeBackground(img, threshold=250){
-  const c = document.getElementById('work');
-  c.width = img.width; c.height = img.height;
-  const ctx = c.getContext('2d');
-  ctx.drawImage(img,0,0);
-  const id = ctx.getImageData(0,0,img.width,img.height);
-  for(let i=0;i<id.data.length;i+=4){
-    const r=id.data[i],g=id.data[i+1],b=id.data[i+2];
-    if(r>threshold && g>threshold && b>threshold){ id.data[i+3]=0; }
-  }
-  ctx.putImageData(id,0,0);
-  return c;
-}
+      // load image
+      let imgBitmap = null;
+      try{
+        const resp = await fetch(dataURL);
+        const blob = await resp.blob();
+        imgBitmap = await createImageBitmap(blob);
+      }catch(e){ postLog('فشل تحميل الصورة: '+(e.message||e)); postMessage({error:'image load failed'}); return; }
 
-function generateStitches(canvas){
-  const ctx = canvas.getContext('2d');
-  const w = canvas.width, h = canvas.height;
-  const id = ctx.getImageData(0,0,w,h);
-  const visited = new Uint8Array(w*h);
-  const paths=[];
-  function getIndex(x,y){ return y*w + x; }
+      const scale = previewW/imgBitmap.width;
+      const w = Math.max(1,Math.round(imgBitmap.width*scale));
+      const h = Math.max(1,Math.round(imgBitmap.height*scale));
+      let off = new OffscreenCanvas(w,h);
+      const ctx = off.getContext('2d');
+      ctx.clearRect(0,0,w,h);
+      ctx.drawImage(imgBitmap,0,0,w,h);
+      postLog(`صورة مقياس ${w}x${h}`);
 
-  for(let y=0;y<h;y++){
-    for(let x=0;x<w;x++){
-      const idx = getIndex(x,y);
-      if(visited[idx]) continue;
-      const a = id.data[idx*4+3];
-      if(a<128) continue;
-      const stack=[[x,y]];
-      const path=[];
-      visited[idx]=1;
-      while(stack.length){
-        const [cx,cy]=stack.pop();
-        path.push([cx,cy]);
-        const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
-        for(const [dx,dy] of dirs){
-          const nx=cx+dx, ny=cy+dy;
-          if(nx<0||ny<0||nx>=w||ny>=h) continue;
-          const nidx = getIndex(nx,ny);
-          if(visited[nidx]) continue;
-          if(id.data[nidx*4+3]>=128){ visited[nidx]=1; stack.push([nx,ny]); }
+      const id = ctx.getImageData(0,0,w,h);
+      const data = id.data;
+
+      // simple quantize
+      postLog('تجزئة الألوان...');
+      const samples=[];
+      const stepY=Math.max(1,Math.floor(h/100));
+      const stepX=Math.max(1,Math.floor(w/100));
+      for(let y=0;y<h;y+=stepY){ for(let x=0;x<w;x+=stepX){ const i=(y*w+x)*4; samples.push([data[i],data[i+1],data[i+2]]); } }
+      const k=colors;
+      let centers=[];
+      for(let i=0;i<k;i++) centers.push(samples[Math.floor(Math.random()*samples.length)].slice());
+      for(let iter=0;iter<8;iter++){
+        const sums=Array.from({length:k},()=>[0,0,0,0]);
+        for(const s of samples){
+          let best=0,bd=Infinity;
+          for(let j=0;j<k;j++){
+            const c=centers[j];
+            const d=(s[0]-c[0])**2+(s[1]-c[1])**2+(s[2]-c[2])**2;
+            if(d<bd){ bd=d; best=j; }
+          }
+          sums[best][0]+=s[0]; sums[best][1]+=s[1]; sums[best][2]+=s[2]; sums[best][3]+=1;
         }
+        for(let j=0;j<k;j++){ if(sums[j][3]>0){ centers[j][0]=Math.round(sums[j][0]/sums[j][3]); centers[j][1]=Math.round(sums[j][1]/sums[j][3]); centers[j][2]=Math.round(sums[j][2]/sums[j][3]); } }
       }
-      if(path.length>5) paths.push(path);
-    }
-  }
-  return paths;
-}
+      postLog('انتهت مراكز الألوان');
 
-function buildSVG(paths, w, h){
-  let svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}' viewBox='0 0 ${w} ${h}'>`;
-  svg += `<rect width='100%' height='100%' fill='transparent'/>`;
-  svg += `<g stroke="black" stroke-width="1" fill="none">`;
-  for(const path of paths){ svg+=`<path d="M${path.map(p=>p.join(',')).join(' L')}"/>`; }
-  svg+='</g></svg>';
-  return svg;
-}
+      const seg = new Uint8Array(w*h);
+      for(let y=0;y<h;y++){ for(let x=0;x<w;x++){ const i=(y*w+x)*4; const r=data[i], g=data[i+1], b=data[i+2]; let best=0,bd=Infinity; for(let j=0;j<k;j++){ const c=centers[j]; const d=(r-c[0])**2+(g-c[1])**2+(b-c[2])**2; if(d<bd){ bd=d; best=j; } } seg[y*w+x]=best; } }
 
-function buildDst(paths){
-  const arr = [];
-  for(const path of paths){
-    for(const p of path){
-      arr.push(p[0] & 0xFF, p[1] & 0xFF, 0x00);
-    }
-  }
-  arr.push(0x00,0x00,0xF3);
-  return new Uint8Array(arr);
-}
+      function collectRegionsForIndex(ci){
+        const visited=new Uint8Array(w*h);
+        const regions=[];
+        for(let y=0;y<h;y++){ for(let x=0;x<w;x++){ const idx=y*w+x; if(visited[idx]||seg[idx]!==ci) continue; const stack=[idx]; visited[idx]=1; let minX=x,maxX=x,minY=y,maxY=y; const pts=[]; while(stack.length){ const cur=stack.pop(); const cy=Math.floor(cur/w), cx=cur-cy*w; pts.push([cx,cy]); if(cx<minX) minX=cx; if(cx>maxX) maxX=cx; if(cy<minY) minY=cy; if(cy>maxY) maxY=cy; const nbs=[cur-1,cur+1,cur-w,cur+w]; for(const nb of nbs){ if(nb<0||nb>=w*h) continue; if(visited[nb]) continue; if(seg[nb]===ci){ visited[nb]=1; stack.push(nb); } } } regions.push({pts,bbox:[minX,minY,maxX,maxY],ci}); } } return regions;
+      }
 
-document.getElementById('process').addEventListener('click', async ()=>{
-  const file=document.getElementById('file').files[0];
-  if(!file){ alert('اختر صورة أولاً'); return; }
-  log('تحميل الصورة...');
-  const img = await readFileAsImage(file);
-  log('إزالة الخلفية...');
-  const canvas = removeBackground(img);
-  log('توليد مسارات الغرز...');
-  const paths = generateStitches(canvas);
-  log(`عدد المسارات: ${paths.length}`);
+      const allColorStitches=[];
+      const angleRad=(angle||0)*Math.PI/180;
 
-  log('بناء SVG...');
-  const svg = buildSVG(paths,canvas.width,canvas.height);
-  const svgBlob = new Blob([svg],{type:'image/svg+xml'});
-  const svgURL = URL.createObjectURL(svgBlob);
+      function generateFillStitches(region){
+        const mask = new Uint8Array(w*h);
+        for(const p of region.pts) mask[p[1]*w+p[0]] = 1;
+        const stitches = [];
+        const [minX,minY,maxX,maxY] = region.bbox;
+        const gap = Math.max(1, stitchGap);
+        const cosA = Math.cos(angleRad), sinA = Math.sin(angleRad);
+        const cx = (minX+maxX)/2, cy=(minY+maxY)/2;
 
-  const dstArr = buildDst(paths);
-  const dstBlob = new Blob([dstArr],{type:'application/octet-stream'});
-  const dstURL = URL.createObjectURL(dstBlob);
+        for(let y=minY-1; y<=maxY+1; y+=gap){
+          let run=[];
+          for(let x=minX-1; x<=maxX+1; x++){
+            if(x<0||y<0||x>=w||y>=h){
+              if(run.length>1) run.forEach(pt=>stitches.push(pt));
+              run=[];
+              continue;
+            }
+            if(mask[y*w+x]){
+              const rx = Math.round(cosA*(x-cx)-sinA*(y-cy)+cx);
+              const ry = Math.round(sinA*(x-cx)+cosA*(y-cy)+cy);
+              run.push([rx,ry]);
+            } else {
+              if(run.length>1) run.forEach(pt=>stitches.push(pt));
+              run=[];
+            }
+          }
+          if(run.length>1) run.forEach(pt=>stitches.push(pt));
+        }
 
-  const preview=document.getElementById('svgPreview');
-  preview.innerHTML=`<object type="image/svg+xml" data="${svgURL}" style="width:100%; height:100%; display:block;"></object>`;
+        const finalStitches=[];
+        for(let i=0;i<stitches.length;i+=stitchLen){
+          finalStitches.push([stitches[i][0],stitches[i][1],i===0,region.ci]);
+        }
+        return finalStitches;
+      }
 
-  const dlDiv = document.createElement('div'); dlDiv.className='mt-2 flex gap-2 justify-center';
-  const a1=document.createElement('a'); a1.href=svgURL; a1.download='pattern.svg'; a1.textContent='⬇️ تحميل SVG'; a1.className='btn bg-blue-600 text-white py-1 px-4 rounded font-semibold';
-  const a2=document.createElement('a'); a2.href=dstURL; a2.download='pattern.dst'; a2.textContent='⬇️ تحميل DST'; a2.className='btn bg-green-600 text-white py-1 px-4 rounded font-semibold';
-  dlDiv.appendChild(a1); dlDiv.appendChild(a2); preview.appendChild(dlDiv);
+      for(let ci=0;ci<k;ci++){
+        postLog(`عامل: معالجة اللون ${ci+1}/${k}...`);
+        const regions=collectRegionsForIndex(ci);
+        for(const reg of regions){ if(reg.pts.length<5) continue; const pts=generateFillStitches(reg); if(pts.length) allColorStitches.push(...pts); }
+      }
 
-  log('تم التوليد بنجاح. استخدم الأزرار لتحميل الملفات.');
+      if(allColorStitches.length===0){ 
+        postLog('عامل: لم تُولَّد غرز'); 
+        const emptySvg=`<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}'><rect width='100%' height='100%' fill='white'></rect></svg>`; 
+        postMessage({ svg:emptySvg, dstBuffer:new ArrayBuffer(0), dseBuffer:new ArrayBuffer(0), width:w, height:h, notes:'no-stitches' }); 
+        return; 
+      }
+
+      function toExportCoord(px){ return Math.round(px*exportScale); }
+      function buildDstBytes(points,label){
+        const header=new Uint8Array(512);
+        const name=('LA:'+ (label||'MOLFA')+'\n').slice(0,80);
+        for(let i=0;i<name.length && i<512;i++) header[i]=name.charCodeAt(i);
+        const body=[];
+        let prevx=0,prevy=0;
+        for(const p of points){
+          const x=toExportCoord(p[0]), y=toExportCoord(p[1]);
+          const isJump=!!p[2];
+          let dx=x-prevx, dy=y-prevy;
+          while(Math.abs(dx)>127||Math.abs(dy)>127){
+            const sx=Math.max(-121,Math.min(121,dx)), sy=Math.max(-121,Math.min(121,dy));
+            body.push(0x80 | ((sx>>7)&0x01) | ((sy>>6)&0x01));
+            body.push(sx&0x7f);
+            body.push(sy&0x7f);
+            dx-=sx; dy-=sy; prevx+=sx; prevy+=sy;
+          }
+          body.push(isJump?0x80:0x00);
+          body.push(dx&0xff);
+          body.push(dy&0xff);
+          prevx=x; prevy=y;
+        }
+        return new Uint8Array([...header,...body]);
+      }
+
+      const dstBuffer=buildDstBytes(allColorStitches,'MLFA');
+      const dseBuffer=buildDstBytes(allColorStitches,'MLFA');
+
+      let svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">`;
+      svg+=`<rect width="100%" height="100%" fill="white"></rect>`;
+      for(const p of allColorStitches){
+        svg+=`<circle cx="${p[0]}" cy="${p[1]}" r="1" fill="black"></circle>`;
+      }
+      svg+=`</svg>`;
+
+      postLog('انتهت المعالجة');
+      postMessage({svg,dstBuffer,dseBuffer,width:w,height:h});
+    }catch(e){ postLog('خطأ المعالجة: '+(e.message||e)); postMessage({error:e.message}); }
+  };
 });
-</script>
 
+/* ---------- Main ---------- */
+document.getElementById('clearLog').onclick = clearLog;
+
+document.getElementById('process').onclick = async ()=>{
+  const file = document.getElementById('file').files[0];
+  if(!file){ alert('اختر صورة أولاً'); return; }
+  showSpinner(); clearLog();
+  const dataURL = await readFileAsDataURL(file);
+  const settings={
+    colors:document.getElementById('colors').value,
+    previewW:document.getElementById('previewW').value,
+    stitchLen:document.getElementById('stitchLen').value,
+    stitchGap:document.getElementById('stitchGap').value,
+    angle:document.getElementById('angle').value,
+    simplify:document.getElementById('simplify').value,
+    mode:document.getElementById('stitchMode').value
+  };
+  worker.postMessage({type:'process', dataURL, settings});
+};
+
+worker.onmessage = function(e){
+  hideSpinner();
+  const msg = e.data;
+  if(msg.type==='log') log(msg.msg);
+  if(msg.svg){
+    const svgPreview = document.getElementById('svgPreview');
+    svgPreview.innerHTML = msg.svg;
+    ['downloadSvg','downloadDst','downloadDse','downloadPng'].forEach(id=>document.getElementById(id).classList.remove('hidden'));
+
+    document.getElementById('downloadSvg').onclick = ()=>{ const blob=new Blob([msg.svg],{type:'image/svg+xml'}); forceDownload(blob,'mlfa.svg'); };
+    document.getElementById('downloadDst').onclick = ()=>{ const blob=new Blob([msg.dstBuffer],{type:'application/octet-stream'}); forceDownload(blob,'mlfa.dst'); };
+    document.getElementById('downloadDse').onclick = ()=>{ const blob=new Blob([msg.dseBuffer],{type:'application/octet-stream'}); forceDownload(blob,'mlfa.dse'); };
+
+    document.getElementById('downloadPng').onclick = ()=>{
+      const canvas = document.createElement('canvas');
+      canvas.width = msg.width;
+      canvas.height = msg.height;
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      img.onload = ()=>{
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.drawImage(img,0,0);
+        canvas.toBlob(blob=>forceDownload(blob,'mlfa.png'));
+      };
+      img.src = 'data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(msg.svg)));
+    };
+  }
+};
+
+document.getElementById('previewBtn').onclick = ()=>{
+  const svgPreview = document.getElementById('svgPreview');
+  if(svgPreview.innerHTML.trim()==='') svgPreview.textContent='لم يتم التوليد بعد';
+};
+</script>
 </body>
 </html>
